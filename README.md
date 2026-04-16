@@ -19,3 +19,25 @@ SOP executor workspace built on Bun.
 - Do not use TypeScript namespaces
 - Use `snake_case` file names
 - Organize code by feature and package responsibility
+
+## Tree
+
+```text
+.
+├── README.md
+├── docs
+│   ├── design
+│   └── superpowers
+├── eslint.config.mjs
+├── package.json
+├── packages
+│   ├── adapter_cli
+│   ├── core
+│   ├── definition
+│   ├── runtime
+│   └── validator
+├── references
+│   └── google_typescript_styleguide
+├── tsconfig.base.json
+└── tsconfig.json
+```
