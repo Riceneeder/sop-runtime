@@ -1,0 +1,26 @@
+{
+  "name": "sop-exec",
+  "private": true,
+  "packageManager": "bun@1.2.4",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "lint": "bunx eslint . --max-warnings 0",
+    "typecheck": "bunx tsc -b",
+    "test": "bun test packages",
+    "check": "bun run lint && bun run typecheck && bun run test",
+    "cli": "bun packages/adapter_cli/src/main.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.25.0",
+    "@types/bun": "^1.2.4",
+    "@typescript-eslint/eslint-plugin": "^8.30.0",
+    "@typescript-eslint/parser": "^8.30.0",
+    "eslint": "^9.25.0",
+    "eslint-plugin-import": "^2.31.0",
+    "globals": "^16.0.0",
+    "typescript": "^5.8.3"
+  }
+}
