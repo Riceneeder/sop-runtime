@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -8,11 +9,17 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    "noEmit": true,
     "declaration": true,
     "composite": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": false
+    "allowSyntheticDefaultImports": false,
+    "paths": {
+      "@sop-exec/adapter-cli": ["./packages/adapter_cli/src/index.ts"],
+      "@sop-exec/core": ["./packages/core/src/index.ts"],
+      "@sop-exec/definition": ["./packages/definition/src/index.ts"],
+      "@sop-exec/runtime": ["./packages/runtime/src/index.ts"],
+      "@sop-exec/validator": ["./packages/validator/src/index.ts"]
+    }
   }
 }
