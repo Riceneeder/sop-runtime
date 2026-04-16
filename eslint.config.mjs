@@ -20,6 +20,7 @@ export default [
         ...globals.node,
         ...globals.es2022,
         ...globals.bun,
+        'Bun': 'readonly',
       },
     },
     plugins: {
