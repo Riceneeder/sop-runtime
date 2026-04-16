@@ -1,0 +1,8 @@
+{
+  "name": "@sop-exec/adapter-cli",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@sop-exec/validator": "workspace:*"
+  }
+}
