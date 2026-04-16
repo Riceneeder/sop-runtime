@@ -37,10 +37,6 @@ export default [
           'message': 'Use regular imports instead of import type, per Google TypeScript Style Guide.'
         },
         {
-          'selector': "ExportNamedDeclaration[exportKind='type']",
-          'message': 'Use regular exports instead of export type re-exports, per Google TypeScript Style Guide.'
-        },
-        {
           'selector': "ImportSpecifier[importKind='type']",
           'message': 'Use regular imports instead of inline type imports, per Google TypeScript Style Guide.'
         },
