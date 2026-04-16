@@ -30,6 +30,14 @@ export default [
       'import/no-default-export': 'error',
       '@typescript-eslint/no-namespace': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          'argsIgnorePattern': '^_',
+          'varsIgnorePattern': '^_',
+        },
+      ],
+      'no-unused-vars': 'off',
       'no-restricted-syntax': [
         'error',
         {
