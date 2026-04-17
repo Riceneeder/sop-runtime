@@ -27,9 +27,23 @@ const definition: SopDefinition = {
       },
       'executor': {
         'kind': 'sandbox_tool',
+        'tool': 'web_search',
+        'command_template': 'Search {{company}}',
+        'path': '/tmp/workspace',
+        'timeout_secs': 120,
+        'allow_network': true,
+        'env': {},
+        'resource_limits': {
+          'max_output_bytes': 1024,
+          'max_artifacts': 1,
+        },
       },
       'output_schema': {},
-      'retry_policy': {},
+      'retry_policy': {
+        'max_attempts': 1,
+        'backoff_secs': [],
+        'retry_on': [],
+      },
       'supervision': {
         'owner': 'main_agent',
         'allowed_outcomes': [{'id': 'continue', 'description': 'go'}],

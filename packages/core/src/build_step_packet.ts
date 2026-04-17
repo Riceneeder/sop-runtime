@@ -1,18 +1,16 @@
-import {RunState, SopDefinition} from '@sop-exec/definition';
+import {JsonObject, JsonValue, StepPacket, RunState, SopDefinition} from '@sop-exec/definition';
 import {CoreError} from './core_error';
 
-export interface CoreStepPacket {
-  run_id: string;
-  step_id: string;
-  attempt: number;
-  inputs: Record<string, unknown>;
-  executor: Record<string, unknown>;
-  output_schema: Record<string, unknown>;
-}
+export type CoreStepPacket = StepPacket;
 
-function resolveInput(template: string, state: RunState): unknown {
+function resolveInput(template: string, state: RunState): JsonValue {
   if (template === '${run.input.company}') {
-    return state.run_input.company;
+    const company = state.run_input.company;
+    if (company === undefined) {
+      throw new CoreError('Missing run input: company.');
+    }
+
+    return company;
   }
 
   return template;
@@ -27,7 +25,7 @@ export function buildStepPacket(params: {
     throw new CoreError('No active step.');
   }
 
-  const inputs: Record<string, unknown> = {};
+  const inputs: JsonObject = {};
   for (const [key, value] of Object.entries(step.inputs)) {
     inputs[key] = typeof value === 'string' ? resolveInput(value, params.state) : value;
   }

@@ -1,12 +1,7 @@
 import {CoreStepPacket} from '@sop-exec/core';
+import {StepResult} from '@sop-exec/definition';
 
-export interface ExecutorResult {
-  run_id: string;
-  step_id: string;
-  attempt: number;
-  status: 'success' | 'timeout' | 'tool_error' | 'sandbox_error';
-  output?: Record<string, unknown>;
-}
+export type ExecutorResult = StepResult;
 
 export interface StepExecutor {
   execute(packet: CoreStepPacket): Promise<ExecutorResult>;
