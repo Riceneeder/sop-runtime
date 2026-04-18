@@ -299,72 +299,17 @@ function descendSchema(
 
   if (isArraySchema(schema)) {
     if (/^\d+$/.test(segment)) {
-      if (schema.items === false) {
-        if (isBothArrayAndObject) {
-          return descendObjectSchema(schema, segment);
-        }
-        return {'kind': 'missing'};
+      const arrayResult = descendArraySchema(schema, segment);
+      if (!isBothArrayAndObject) {
+        return arrayResult;
       }
-
-      if (isPlainObject(schema.items)) {
-        if (isBothArrayAndObject) {
-          const objectResult = descendObjectSchema(schema, segment);
-          if (objectResult.kind !== 'missing') {
-            return objectResult;
-          }
+      if (arrayResult.kind === 'schema') {
+        const objectResult = descendObjectSchema(schema, segment);
+        if (objectResult.kind !== 'missing') {
+          return objectResult;
         }
-        return {'kind': 'schema', 'schema': schema.items};
       }
-
-      if (Array.isArray(schema.items)) {
-        const itemSchema = schema.items[Number(segment)];
-        if (itemSchema === undefined) {
-          if (schema.additionalItems === false) {
-            if (isBothArrayAndObject) {
-              return descendObjectSchema(schema, segment);
-            }
-            return {'kind': 'missing'};
-          }
-
-          if (isPlainObject(schema.additionalItems)) {
-            if (isBothArrayAndObject) {
-              const objectResult = descendObjectSchema(schema, segment);
-              if (objectResult.kind !== 'missing') {
-                return objectResult;
-              }
-            }
-            return {'kind': 'schema', 'schema': schema.additionalItems};
-          }
-
-          if (isBothArrayAndObject) {
-            return descendObjectSchema(schema, segment);
-          }
-
-          return {'kind': 'unknown'};
-        }
-
-        if (itemSchema === false) {
-          if (isBothArrayAndObject) {
-            return descendObjectSchema(schema, segment);
-          }
-          return {'kind': 'missing'};
-        }
-
-        if (isBothArrayAndObject) {
-          const objectResult = descendObjectSchema(schema, segment);
-          if (objectResult.kind !== 'missing') {
-            return objectResult;
-          }
-        }
-
-        return {'kind': 'schema', 'schema': itemSchema};
-      }
-
-      if (isBothArrayAndObject) {
-        return descendObjectSchema(schema, segment);
-      }
-
-      return {'kind': 'unknown'};
+      return arrayResult.kind !== 'schema' ? descendObjectSchema(schema, segment) : arrayResult;
     }
 
     if (!isBothArrayAndObject) {
@@ -378,6 +323,49 @@ function descendSchema(
 
   if (isKnownPrimitiveLeafSchema(schema)) {
     return {'kind': 'missing'};
+  }
+
+  return {'kind': 'unknown'};
+}
+
+function descendArraySchema(
+  schema: Record<string, unknown>,
+  segment: string,
+): {kind: 'missing' | 'unknown'} | {kind: 'schema'; schema: unknown} {
+  if (schema.items === false) {
+    return {'kind': 'missing'};
+  }
+
+  if (isPlainObject(schema.items)) {
+    return {'kind': 'schema', 'schema': schema.items};
+  }
+
+  if (Array.isArray(schema.items)) {
+    return descendTupleArraySchema(schema, segment);
+  }
+
+  return {'kind': 'unknown'};
+}
+
+function descendTupleArraySchema(
+  schema: Record<string, unknown>,
+  segment: string,
+): {kind: 'missing' | 'unknown'} | {kind: 'schema'; schema: unknown} {
+  const items = schema.items as unknown[];
+  const itemSchema = items[Number(segment)];
+  if (itemSchema !== undefined) {
+    if (itemSchema === false) {
+      return {'kind': 'missing'};
+    }
+    return {'kind': 'schema', 'schema': itemSchema};
+  }
+
+  if (schema.additionalItems === false) {
+    return {'kind': 'missing'};
+  }
+
+  if (isPlainObject(schema.additionalItems)) {
+    return {'kind': 'schema', 'schema': schema.additionalItems};
   }
 
   return {'kind': 'unknown'};
@@ -422,6 +410,12 @@ function descendObjectSchema(
   }
 
   if (matchingPatternSchemas.length > 1) {
+    if (matchingPatternSchemas.some((s) => s === false)) {
+      if (isArraySchema(schema)) {
+        return {'kind': 'unknown'};
+      }
+      return {'kind': 'missing'};
+    }
     return {'kind': 'unknown'};
   }
 
@@ -506,10 +500,17 @@ function pathExistsInObject(obj: unknown, path: string[]): boolean {
 
   let current: unknown = obj;
   for (const segment of path) {
-    if (!isPlainObject(current) || !Object.hasOwn(current, segment)) {
+    if (Array.isArray(current) && /^\d+$/.test(segment)) {
+      const index = Number(segment);
+      if (index >= current.length) {
+        return false;
+      }
+      current = current[index];
+    } else if (isPlainObject(current) && Object.hasOwn(current, segment)) {
+      current = current[segment];
+    } else {
       return false;
     }
-    current = current[segment];
   }
 
   return true;
