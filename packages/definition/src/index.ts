@@ -1,3 +1,10 @@
+/**
+ * @packageDocumentation
+ *
+ * Public entrypoint for the definition package.
+ *
+ * `@sop-exec/definition` 的公共导出入口。
+ */
 export {
   RUN_PHASES,
   RUN_STATUSES,

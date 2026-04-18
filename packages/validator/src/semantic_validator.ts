@@ -1,7 +1,22 @@
+/**
+ * Semantic validation that checks cross-reference integrity inside a definition.
+ *
+ * 检查定义内部引用关系与一致性的语义层校验。
+ */
 import {SopDefinition} from '@sop-exec/definition';
 import {Diagnostic} from './diagnostic';
 import {joinPath} from './path';
 
+/**
+ * Validate step ids, outcomes, transitions, and the declared entry step.
+ *
+ * 校验步骤标识、outcome、转移规则以及入口步骤的引用正确性。
+ *
+ * @param definition - SOP definition to inspect.
+ * 需要检查引用关系的 SOP 定义。
+ * @returns Semantic diagnostics discovered in the definition.
+ * 在定义中发现的语义层诊断信息。
+ */
 export function validateSemanticDefinition(definition: SopDefinition): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   const seenStepIds = new Set<string>();
