@@ -1,6 +1,6 @@
-# sop-exec
+# sop-runtime
 
-SOP executor workspace built on Bun.
+SOP runtime workspace built on Bun.
 
 ## Workspace
 

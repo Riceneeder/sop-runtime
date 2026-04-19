@@ -1,6 +1,6 @@
-# `@sop-exec/validator`
+# `@sop-runtime/validator`
 
-`@sop-exec/validator` 是 SOP 定义的 admission check 层。它接收一个 `SopDefinition` 风格的对象，按固定顺序执行结构、语义和表达式三类校验，最后返回统一的 `ValidationResult`。
+`@sop-runtime/validator` 是 SOP 定义的 admission check 层。它接收一个 `SopDefinition` 风格的对象，按固定顺序执行结构、语义和表达式三类校验，最后返回统一的 `ValidationResult`。
 
 ## 包定位
 
@@ -12,7 +12,7 @@
 - 解析运行时状态机
 - 真正执行步骤
 
-它依赖 [`@sop-exec/definition`](../definition/README.md) 提供类型、表达式解析器和若干共享常量。
+它依赖 [`@sop-runtime/definition`](../definition/README.md) 提供类型、表达式解析器和若干共享常量。
 
 ## 对外暴露内容
 
@@ -24,7 +24,7 @@
 典型使用方式：
 
 ```ts
-import {validateDefinition} from '@sop-exec/validator';
+import {validateDefinition} from '@sop-runtime/validator';
 
 const result = validateDefinition(definition);
 
@@ -78,15 +78,15 @@ if (!result.ok) {
 
 | 文件                                                             | 作用                                                    | 直接依赖                                             | 谁会依赖它                                                                   |
 | -------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
-| [`package.json`](./package.json)                               | 定义包名、模块类型，并声明对 `@sop-exec/definition` 的 workspace 依赖。 | 无                                                | 包管理器、工作区解析                                                              |
+| [`package.json`](./package.json)                               | 定义包名、模块类型，并声明对 `@sop-runtime/definition` 的 workspace 依赖。 | 无                                                | 包管理器、工作区解析                                                              |
 | [`tsconfig.json`](./tsconfig.json)                             | 指定构建输入输出目录，并通过 `references` 声明对 definition 包的编译依赖。    | 根 `tsconfig.base.json`、`../definition`           | TypeScript 构建                                                           |
 | [`src/index.ts`](./src/index.ts)                               | 公共入口，只重新导出顶层校验 API 和诊断类型。                             | `diagnostic.ts`、`validate_definition.ts`         | 外部调用者、测试                                                                |
 | [`src/diagnostic.ts`](./src/diagnostic.ts)                     | 定义 `Diagnostic` 与 `ValidationResult`，统一所有校验阶段的输出形状。   | 无                                                | `validate_definition.ts`、各校验器、`index.ts`                                |
 | [`src/path.ts`](./src/path.ts)                                 | 把嵌套对象位置格式化为稳定的诊断路径字符串。                                | 无                                                | `schema_validator.ts`、`semantic_validator.ts`、`expression_validator.ts` |
-| [`src/schema_validator.ts`](./src/schema_validator.ts)         | 负责结构层校验，包括字段白名单、类型、枚举、正则和最小约束。                        | `@sop-exec/definition`、`diagnostic.ts`、`path.ts` | `validate_definition.ts`                                                |
-| [`src/semantic_validator.ts`](./src/semantic_validator.ts)     | 负责语义层校验，包括步骤图、outcome 和 transition 之间的关系。             | `@sop-exec/definition`、`diagnostic.ts`、`path.ts` | `validate_definition.ts`                                                |
-| [`src/expression_validator.ts`](./src/expression_validator.ts) | 负责模板表达式校验，复用 definition 包里的表达式解析器和 AST。               | `@sop-exec/definition`、`diagnostic.ts`、`path.ts` | `validate_definition.ts`                                                |
-| [`src/validate_definition.ts`](./src/validate_definition.ts)   | 顶层编排器；按固定顺序串联三类校验并汇总结果。                               | `@sop-exec/definition`、`diagnostic.ts`、三个子校验器    | `index.ts`                                                              |
+| [`src/schema_validator.ts`](./src/schema_validator.ts)         | 负责结构层校验，包括字段白名单、类型、枚举、正则和最小约束。                        | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts` | `validate_definition.ts`                                                |
+| [`src/semantic_validator.ts`](./src/semantic_validator.ts)     | 负责语义层校验，包括步骤图、outcome 和 transition 之间的关系。             | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts` | `validate_definition.ts`                                                |
+| [`src/expression_validator.ts`](./src/expression_validator.ts) | 负责模板表达式校验，复用 definition 包里的表达式解析器和 AST。               | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts` | `validate_definition.ts`                                                |
+| [`src/validate_definition.ts`](./src/validate_definition.ts)   | 顶层编排器；按固定顺序串联三类校验并汇总结果。                               | `@sop-runtime/definition`、`diagnostic.ts`、三个子校验器    | `index.ts`                                                              |
 
 ### 测试文件
 
@@ -123,7 +123,7 @@ validate_definition
 还要再叠加一层外部依赖：
 
 ```text
-@sop-exec/definition
+@sop-runtime/definition
 ├── 提供 SopDefinition 类型
 ├── 提供 RETRYABLE_STEP_RESULT_STATUSES
 └── 提供表达式解析器与错误类型
@@ -188,12 +188,12 @@ validate_definition
 
 如果你想快速知道“系统认为哪些输入是非法的”，直接读这份测试最省时间。
 
-## 与 `@sop-exec/definition` 的关系
+## 与 `@sop-runtime/definition` 的关系
 
 两个包之间的边界非常明确：
 
-- `@sop-exec/definition` 负责定义模型和表达式语法
-- `@sop-exec/validator` 负责基于这些模型和语法做合法性判断
+- `@sop-runtime/definition` 负责定义模型和表达式语法
+- `@sop-runtime/validator` 负责基于这些模型和语法做合法性判断
 
 因此，validator 的很多规则都不是凭空产生的，而是直接建立在 definition 包的导出之上：
 

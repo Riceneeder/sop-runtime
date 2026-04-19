@@ -1,6 +1,6 @@
-# `@sop-exec/definition`
+# `@sop-runtime/definition`
 
-`@sop-exec/definition` 是 SOP 执行系统里的“共享定义层”。它不负责真正执行步骤，也不做 admission check；它的职责是提供一套稳定的类型、常量和表达式解析能力，供其他包复用。
+`@sop-runtime/definition` 是 SOP 执行系统里的“共享定义层”。它不负责真正执行步骤，也不做 admission check；它的职责是提供一套稳定的类型、常量和表达式解析能力，供其他包复用。
 
 ## 包定位
 
@@ -10,7 +10,7 @@
 - 运行时模型：例如 `RunState`、`StepResult`、`Decision`。
 - 表达式解析：例如 `parseExpressionTemplate`、`parseExpressionBody`、`ExpressionSyntaxError`。
 
-它本身不做校验；校验职责在 [`@sop-exec/validator`](../validator/README.md)。
+它本身不做校验；校验职责在 [`@sop-runtime/validator`](../validator/README.md)。
 
 ## 对外暴露内容
 
@@ -26,8 +26,8 @@
 典型导入方式：
 
 ```ts
-import type {SopDefinition, RunState} from '@sop-exec/definition';
-import {parseExpressionTemplate, RUN_STATUSES} from '@sop-exec/definition';
+import type {SopDefinition, RunState} from '@sop-runtime/definition';
+import {parseExpressionTemplate, RUN_STATUSES} from '@sop-runtime/definition';
 ```
 
 ## 核心概念
@@ -150,12 +150,12 @@ index
 
 如果你只想判断包的公开能力有没有变，先看 `index.test.ts`；如果你在追表达式行为，再看 `expression.test.ts`。
 
-## 与 `@sop-exec/validator` 的关系
+## 与 `@sop-runtime/validator` 的关系
 
 两个包的关系是“定义层”和“校验层”的关系：
 
-- `@sop-exec/definition` 负责声明“数据长什么样”
-- `@sop-exec/validator` 负责判断“这份定义是否合法”
+- `@sop-runtime/definition` 负责声明“数据长什么样”
+- `@sop-runtime/validator` 负责判断“这份定义是否合法”
 
 更具体地说，validator 会直接复用本包中的：
 
