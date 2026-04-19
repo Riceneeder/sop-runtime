@@ -15,10 +15,10 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": false,
     "paths": {
-      "@sop-exec/core": ["./packages/core/src/index.ts"],
-      "@sop-exec/definition": ["./packages/definition/src/index.ts"],
-      "@sop-exec/runtime": ["./packages/runtime/src/index.ts"],
-      "@sop-exec/validator": ["./packages/validator/src/index.ts"]
+      "@sop-runtime/core": ["./packages/core/src/index.ts"],
+      "@sop-runtime/definition": ["./packages/definition/src/index.ts"],
+      "@sop-runtime/runtime": ["./packages/runtime/src/index.ts"],
+      "@sop-runtime/validator": ["./packages/validator/src/index.ts"]
     }
   }
 }

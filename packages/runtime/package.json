@@ -1,9 +1,9 @@
 {
-  "name": "@sop-exec/runtime",
+  "name": "@sop-runtime/runtime",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@sop-exec/core": "workspace:*",
-    "@sop-exec/definition": "workspace:*"
+    "@sop-runtime/core": "workspace:*",
+    "@sop-runtime/definition": "workspace:*"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@sop-exec/definition",
+  "name": "@sop-runtime/definition",
   "private": true,
   "type": "module"
 }

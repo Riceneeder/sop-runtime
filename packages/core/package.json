@@ -1,9 +1,9 @@
 {
-  "name": "@sop-exec/core",
+  "name": "@sop-runtime/core",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@sop-exec/definition": "workspace:*",
-    "@sop-exec/validator": "workspace:*"
+    "@sop-runtime/definition": "workspace:*",
+    "@sop-runtime/validator": "workspace:*"
   }
 }

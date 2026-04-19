@@ -1,5 +1,5 @@
 {
-  "name": "sop-exec",
+  "name": "sop-runtime",
   "private": true,
   "packageManager": "bun@1.2.4",
   "type": "module",
