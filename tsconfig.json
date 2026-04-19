@@ -4,7 +4,6 @@
     {"path": "./packages/definition"},
     {"path": "./packages/validator"},
     {"path": "./packages/core"},
-    {"path": "./packages/runtime"},
-    {"path": "./packages/adapter_cli"}
+    {"path": "./packages/runtime"}
   ]
 }

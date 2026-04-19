@@ -15,7 +15,6 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": false,
     "paths": {
-      "@sop-exec/adapter-cli": ["./packages/adapter_cli/src/index.ts"],
       "@sop-exec/core": ["./packages/core/src/index.ts"],
       "@sop-exec/definition": ["./packages/definition/src/index.ts"],
       "@sop-exec/runtime": ["./packages/runtime/src/index.ts"],

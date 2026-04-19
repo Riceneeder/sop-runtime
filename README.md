@@ -8,7 +8,6 @@ SOP executor workspace built on Bun.
 - `packages/validator`: SOP definition admission checks
 - `packages/core`: deterministic SOP state-machine semantics
 - `packages/runtime`: runtime ports and thin orchestration contracts
-- `packages/adapter_cli`: Bun-powered CLI entrypoint
 - `docs/design`: design documents
 - `references/google_typescript_styleguide`: local style guide mirror
 
@@ -31,7 +30,6 @@ SOP executor workspace built on Bun.
 ├── eslint.config.mjs
 ├── package.json
 ├── packages
-│   ├── adapter_cli
 │   ├── core
 │   ├── definition
 │   ├── runtime

@@ -10,8 +10,7 @@
     "lint": "bunx eslint . --max-warnings 0",
     "typecheck": "bunx tsc -b",
     "test": "bun test packages/*/src",
-    "check": "bun run lint && bun run typecheck && bun run test",
-    "cli": "bun packages/adapter_cli/src/main.ts"
+    "check": "bun run lint && bun run typecheck && bun run test"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
