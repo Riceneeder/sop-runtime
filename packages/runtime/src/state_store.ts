@@ -1,4 +1,4 @@
-import {RunState} from '@sop-exec/definition';
+import {RunState} from '@sop-runtime/definition';
 
 export interface StateStore {
   loadRun(runId: string): Promise<RunState | null>;

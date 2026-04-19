@@ -3,7 +3,7 @@
  *
  * 针对 SOP 定义做结构层面的模式校验。
  */
-import {RETRYABLE_STEP_RESULT_STATUSES, SopDefinition} from '@sop-exec/definition';
+import {RETRYABLE_STEP_RESULT_STATUSES, SopDefinition} from '@sop-runtime/definition';
 import {Diagnostic} from './diagnostic';
 import {joinPath} from './path';
 

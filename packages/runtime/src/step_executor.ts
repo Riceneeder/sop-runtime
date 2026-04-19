@@ -1,5 +1,5 @@
-import {CoreStepPacket} from '@sop-exec/core';
-import {StepResult} from '@sop-exec/definition';
+import {CoreStepPacket} from '@sop-runtime/core';
+import {StepResult} from '@sop-runtime/definition';
 
 export type ExecutorResult = StepResult;
 

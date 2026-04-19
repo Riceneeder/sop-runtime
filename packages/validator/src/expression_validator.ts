@@ -3,7 +3,7 @@
  *
  * 针对 SOP 定义中嵌入模板表达式的引用校验器。
  */
-import {ExpressionNode, ExpressionSyntaxError, SopDefinition, parseExpressionTemplate} from '@sop-exec/definition';
+import {ExpressionNode, ExpressionSyntaxError, SopDefinition, parseExpressionTemplate} from '@sop-runtime/definition';
 import {Diagnostic} from './diagnostic';
 import {joinPath} from './path';
 

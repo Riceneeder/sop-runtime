@@ -1,4 +1,4 @@
-import {JsonObject, JsonValue, StepPacket, RunState, SopDefinition} from '@sop-exec/definition';
+import {JsonObject, JsonValue, StepPacket, RunState, SopDefinition} from '@sop-runtime/definition';
 import {CoreError} from './core_error';
 
 export type CoreStepPacket = StepPacket;

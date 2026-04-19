@@ -3,7 +3,7 @@
  *
  * SOP 定义顶层校验入口，负责串联所有校验阶段。
  */
-import {SopDefinition} from '@sop-exec/definition';
+import {SopDefinition} from '@sop-runtime/definition';
 import {Diagnostic, ValidationResult} from './diagnostic';
 import {validateExpressionDefinition} from './expression_validator';
 import {validateSchemaDefinition} from './schema_validator';

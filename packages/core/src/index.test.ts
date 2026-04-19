@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'bun:test';
-import {SopDefinition} from '@sop-exec/definition';
+import {SopDefinition} from '@sop-runtime/definition';
 import {buildStepPacket, createRun, getCurrentStep} from './index';
 
 const definition: SopDefinition = {

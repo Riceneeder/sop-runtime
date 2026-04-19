@@ -3,7 +3,7 @@
  *
  * 检查定义内部引用关系与一致性的语义层校验。
  */
-import {SopDefinition} from '@sop-exec/definition';
+import {SopDefinition} from '@sop-runtime/definition';
 import {Diagnostic} from './diagnostic';
 import {joinPath} from './path';
 

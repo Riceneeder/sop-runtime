@@ -3,7 +3,7 @@
  *
  * Public entrypoint for the definition package.
  *
- * `@sop-exec/definition` 的公共导出入口。
+ * `@sop-runtime/definition` 的公共导出入口。
  */
 export {
   RUN_PHASES,

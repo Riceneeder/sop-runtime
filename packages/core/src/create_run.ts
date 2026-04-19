@@ -1,5 +1,5 @@
-import {JsonObject, RunState, SopDefinition, StepState} from '@sop-exec/definition';
-import {validateDefinition} from '@sop-exec/validator';
+import {JsonObject, RunState, SopDefinition, StepState} from '@sop-runtime/definition';
+import {validateDefinition} from '@sop-runtime/validator';
 import {CoreError} from './core_error';
 
 export function createRun(params: {

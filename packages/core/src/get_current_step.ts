@@ -1,4 +1,4 @@
-import {RunState, SopDefinition, StepDefinition} from '@sop-exec/definition';
+import {RunState, SopDefinition, StepDefinition} from '@sop-runtime/definition';
 
 export interface CurrentStepView {
   step_id: string;
