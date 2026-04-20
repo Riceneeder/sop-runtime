@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'bun:test';
 import {SopDefinition} from '@sop-runtime/definition';
-import {buildStepPacket, createRun, getCurrentStep} from './index';
+import {buildStepPacket, CoreError, createRun, getCurrentStep} from './index';
 
 const definition: SopDefinition = {
   'sop_id': 'news_report',
@@ -77,5 +77,52 @@ describe('core package', () => {
     expect(state.current_attempt).toBe(1);
     expect(currentStep?.step_id).toBe('search_news');
     expect(packet.inputs.company).toBe('Acme');
+  });
+
+  test('returns current step_state as a copy', () => {
+    const state = createRun({
+      definition,
+      'input': {'company': 'Acme'},
+      'runId': 'run_001',
+    });
+    const currentStep = getCurrentStep({
+      definition,
+      state,
+    });
+
+    if (currentStep === null) {
+      throw new Error('Expected current step for running state.');
+    }
+
+    expect(currentStep.step_state).not.toBe(state.steps.search_news);
+    currentStep.step_state.status = 'failed';
+    currentStep.step_state.attempt_count = 999;
+
+    expect(state.steps.search_news?.status).toBe('active');
+    expect(state.steps.search_news?.attempt_count).toBe(1);
+  });
+
+  test('rejects current-step lookup when definition id/version mismatches run state', () => {
+    const state = createRun({
+      definition,
+      'input': {'company': 'Acme'},
+      'runId': 'run_001',
+    });
+
+    let error: unknown;
+    try {
+      getCurrentStep({
+        'definition': {
+          ...definition,
+          'sop_id': 'other_sop',
+        },
+        state,
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(CoreError);
+    expect((error as CoreError).code).toBe('invalid_state');
   });
 });

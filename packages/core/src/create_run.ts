@@ -1,21 +1,37 @@
 import {JsonObject, RunState, SopDefinition, StepState} from '@sop-runtime/definition';
-import {validateDefinition} from '@sop-runtime/validator';
+import {validateDefinition, validateRuntimeValue} from '@sop-runtime/validator';
 import {CoreError} from './core_error';
 
 export function createRun(params: {
   definition: SopDefinition;
   input: JsonObject;
   runId: string;
+  now?: string;
 }): RunState {
   const validation = validateDefinition(params.definition);
   if (!validation.ok) {
-    throw new CoreError('Definition validation failed.');
+    throw new CoreError('definition_invalid', {
+      'message': 'Definition validation failed.',
+      'diagnostics': validation.diagnostics,
+    });
   }
 
   const runInput = {
-    ...params.definition.defaults,
+    ...(params.definition.defaults ?? {}),
     ...params.input,
   };
+  const inputValidation = validateRuntimeValue({
+    'schema': params.definition.input_schema,
+    'value': runInput,
+    'path': 'run_input',
+  });
+  if (!inputValidation.ok) {
+    throw new CoreError('run_input_invalid', {
+      'message': 'Run input validation failed.',
+      'diagnostics': inputValidation.diagnostics,
+    });
+  }
+
   const steps: Record<string, StepState> = {};
   for (const step of params.definition.steps) {
     steps[step.id] = {
@@ -37,9 +53,30 @@ export function createRun(params: {
     'current_attempt': 1,
     steps,
     'accepted_results': {},
-    'history': [{
-      'kind': 'run_created',
-      'step_id': params.definition.entry_step,
-    }],
+    'history': [buildRunCreatedHistory({
+      'entryStepId': params.definition.entry_step,
+      'now': params.now,
+    })],
+    'created_at': params.now,
+    'updated_at': params.now,
   };
+}
+
+function buildRunCreatedHistory(params: {
+  entryStepId: string;
+  now?: string;
+}): RunState['history'][number] {
+  const entry: RunState['history'][number] = {
+    'kind': 'run_created',
+    'step_id': params.entryStepId,
+  };
+
+  if (params.now !== undefined) {
+    return {
+      ...entry,
+      'at': params.now,
+    };
+  }
+
+  return entry;
 }
