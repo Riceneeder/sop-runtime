@@ -5,8 +5,8 @@ import {
   SopDefinition,
   StepLifecycle,
 } from '@sop-runtime/definition';
-import {CoreError} from './core_error';
-import {assertDefinitionMatchesRun, getCurrentStep} from './get_current_step';
+import {CoreError} from './core_error.js';
+import {assertDefinitionMatchesRun, getCurrentStep} from './get_current_step.js';
 
 export function applyDecision(params: {
   definition: SopDefinition;

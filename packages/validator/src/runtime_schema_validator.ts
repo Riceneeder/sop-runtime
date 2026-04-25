@@ -3,8 +3,8 @@
  *
  * 基于 JSON Schema 子集对运行时值进行校验。
  */
-import {Diagnostic, ValidationResult} from './diagnostic';
-import {joinPath} from './path';
+import {Diagnostic, ValidationResult} from './diagnostic.js';
+import {joinPath} from './path.js';
 
 const SUPPORTED_SCHEMA_TYPES = new Set([
   'array',

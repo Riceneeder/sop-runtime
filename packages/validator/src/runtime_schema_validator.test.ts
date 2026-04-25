@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'bun:test';
-import {validateRuntimeValue} from './index';
+import {validateRuntimeValue} from './index.js';
 
 describe('validateRuntimeValue', () => {
   test('validates nested runtime values and keeps stable diagnostic paths', () => {

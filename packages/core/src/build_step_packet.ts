@@ -1,7 +1,7 @@
 import {JsonObject, JsonValue, StepPacket, RunState, SopDefinition} from '@sop-runtime/definition';
-import {CoreError} from './core_error';
-import {renderJsonValueTemplates} from './expression_evaluator';
-import {assertDefinitionMatchesRun, getCurrentStep} from './get_current_step';
+import {CoreError} from './core_error.js';
+import {renderJsonValueTemplates} from './expression_evaluator.js';
+import {assertDefinitionMatchesRun, getCurrentStep} from './get_current_step.js';
 
 export type CoreStepPacket = StepPacket;
 

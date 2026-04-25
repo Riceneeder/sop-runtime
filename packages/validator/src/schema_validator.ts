@@ -4,8 +4,8 @@
  * 针对 SOP 定义做结构层面的模式校验。
  */
 import {RETRYABLE_STEP_RESULT_STATUSES, SopDefinition} from '@sop-runtime/definition';
-import {Diagnostic} from './diagnostic';
-import {joinPath} from './path';
+import {Diagnostic} from './diagnostic.js';
+import {joinPath} from './path.js';
 
 /** Allowed top-level keys on a SOP definition object. SOP 定义对象允许出现的顶层字段。 */
 const ROOT_KEYS = new Set([

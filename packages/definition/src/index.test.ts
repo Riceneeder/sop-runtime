@@ -14,7 +14,7 @@ import {
   SopDefinition,
   parseExpressionBody,
   parseExpressionTemplate,
-} from './index';
+} from './index.js';
 
 describe('definition exports', () => {
   test('exports the shared SOP model types and richer run state contracts', () => {

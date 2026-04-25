@@ -1,7 +1,7 @@
 import {JsonObject, RunState, SopDefinition} from '@sop-runtime/definition';
-import {CoreError} from './core_error';
-import {renderJsonValueTemplates} from './expression_evaluator';
-import {assertDefinitionMatchesRun} from './get_current_step';
+import {CoreError} from './core_error.js';
+import {renderJsonValueTemplates} from './expression_evaluator.js';
+import {assertDefinitionMatchesRun} from './get_current_step.js';
 
 export function renderFinalOutput(params: {
   definition: SopDefinition;

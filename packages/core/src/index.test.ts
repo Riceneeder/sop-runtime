@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'bun:test';
 import {SopDefinition} from '@sop-runtime/definition';
-import {buildStepPacket, CoreError, createRun, getCurrentStep} from './index';
+import {buildStepPacket, CoreError, createRun, getCurrentStep} from './index.js';
 
 const definition: SopDefinition = {
   'sop_id': 'news_report',

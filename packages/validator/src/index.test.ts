@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'bun:test';
-import {validateDefinition} from './index';
+import {validateDefinition} from './index.js';
 
 describe('validateDefinition', () => {
   test('reports stable paths for top-level and nested validation errors', () => {

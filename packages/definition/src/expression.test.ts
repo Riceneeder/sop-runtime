@@ -3,7 +3,7 @@ import {
   ExpressionSyntaxError,
   parseExpressionBody,
   parseExpressionTemplate,
-} from './index';
+} from './index.js';
 
 describe('expression parser', () => {
   test('parses references, literals, and coalesce expressions', () => {

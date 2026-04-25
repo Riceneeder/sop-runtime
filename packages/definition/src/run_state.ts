@@ -3,8 +3,8 @@
  *
  * 描述 SOP 运行过程演进的运行时状态快照。
  */
-import {AcceptedStepResult, AcceptedStepResultStatus} from './execution';
-import {JsonObject} from './json_value';
+import {AcceptedStepResult, AcceptedStepResultStatus} from './execution.js';
+import {JsonObject} from './json_value.js';
 
 /**
  * Terminal lifecycle status for an entire run.

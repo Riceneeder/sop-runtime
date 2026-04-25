@@ -5,7 +5,7 @@ import {
   RunState,
   parseExpressionTemplate,
 } from '@sop-runtime/definition';
-import {CoreError} from './core_error';
+import {CoreError} from './core_error.js';
 
 interface MissingExpressionValueDetails {
   expression: string;

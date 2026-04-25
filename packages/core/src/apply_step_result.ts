@@ -7,8 +7,8 @@ import {
   StepResult,
 } from '@sop-runtime/definition';
 import {validateRuntimeValue} from '@sop-runtime/validator';
-import {CoreError} from './core_error';
-import {assertDefinitionMatchesRun, getCurrentStep} from './get_current_step';
+import {CoreError} from './core_error.js';
+import {assertDefinitionMatchesRun, getCurrentStep} from './get_current_step.js';
 
 const STEP_RESULT_ALLOWED_KEYS = new Set([
   'run_id',

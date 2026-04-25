@@ -183,8 +183,8 @@
 
 - `StateStore`
   - 保存和读取 `RunState`
-  - 保存 `StepRun`
-  - 查询历史 attempt
+  - 保存 `RunRecord`
+  - 原子处理 run 启动认领、幂等、并发和 cooldown 策略
 - `StepExecutor`
   - 接收 `StepPacket`
   - 返回 `StepResult`
@@ -197,6 +197,19 @@
   - 生成 `run_id`、`trace_id`
 - `Logger` / `EventSink`
   - 记录审计事件与调试信息
+
+### 当前 MVP 对应实现
+
+当前仓库中，Runtime Ports Layer 已落到 `packages/runtime/src`：
+
+- `state_store.ts` 定义 `StateStore`、`RunRecord` 和 `claimRunStart` 契约
+- `step_executor.ts` 定义 `StepExecutor`
+- `decision_provider.ts` 定义 `DecisionProvider` 和默认决策器
+- `clock.ts` 定义 `Clock`
+- `id_generator.ts` 定义 `IdGenerator`
+- `logger.ts` 与 `event_sink.ts` 定义观测端口
+
+当前 `StateStore` 的重点不是单个 `saveRun`，而是 `claimRunStart` 必须具备原子性。真实数据库实现应通过事务、唯一索引或条件写实现同等语义。
 
 ### 这一层的价值
 
@@ -241,6 +254,20 @@
 - 一个 embeddable runtime class
 - 一个 library API
 - 一个可以被 CLI / MCP / 插件直接调用的 orchestration facade
+
+### 当前 MVP 对应实现
+
+当前 Host Runtime Layer 已落到 `packages/runtime/src/runtime_host.ts`。`RuntimeHost` 负责：
+
+- 启动 run 并调用 `StateStore.claimRunStart`
+- 根据 core 构建 `StepPacket`
+- 调用 `StepExecutor`
+- 将 `StepResult` 交回 core 收敛为新状态
+- 调用 `DecisionProvider` 或应用调用方传入的 `Decision`
+- 执行 `max_run_secs`、definition 身份匹配和终止事件发射
+- 在成功终止后渲染 `final_output`
+
+当前 MVP 不包含 step / decision 阶段的分布式租约或 CAS，因此同一个 run 不应被多个 worker 并发驱动。需要多 worker 执行时，应先扩展 `StateStore` 端口。
 
 ---
 

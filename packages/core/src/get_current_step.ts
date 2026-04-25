@@ -1,5 +1,5 @@
 import {RunState, SopDefinition, StepDefinition, StepState} from '@sop-runtime/definition';
-import {CoreError} from './core_error';
+import {CoreError} from './core_error.js';
 
 export interface CurrentStepView {
   step_id: string;

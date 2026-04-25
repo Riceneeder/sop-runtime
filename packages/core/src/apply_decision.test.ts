@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'bun:test';
 import {SopDefinition} from '@sop-runtime/definition';
-import {CoreError, applyDecision, applyStepResult, createRun} from './index';
+import {CoreError, applyDecision, applyStepResult, createRun} from './index.js';
 
 function buildDefinition(): SopDefinition {
   return {

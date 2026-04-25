@@ -9,7 +9,7 @@ export {
   RUN_PHASES,
   RUN_STATUSES,
   STEP_LIFECYCLES,
-} from './run_state';
+} from './run_state.js';
 export type {
   HistoryEntry,
   RunPhase,
@@ -17,11 +17,11 @@ export type {
   RunStatus,
   StepLifecycle,
   StepState,
-} from './run_state';
+} from './run_state.js';
 export {
   ACCEPTED_STEP_RESULT_STATUSES,
   EXECUTOR_RESULT_STATUSES,
-} from './execution';
+} from './execution.js';
 export type {
   AcceptedStepResult,
   AcceptedStepResultStatus,
@@ -32,8 +32,8 @@ export type {
   StepPacket,
   StepResult,
   StepRun,
-} from './execution';
-export type {JsonArray, JsonObject, JsonPrimitive, JsonValue} from './json_value';
+} from './execution.js';
+export type {JsonArray, JsonObject, JsonPrimitive, JsonValue} from './json_value.js';
 export type {
   AllowedOutcome,
   ExecutorConfig,
@@ -47,15 +47,15 @@ export type {
   StepDefinition,
   SupervisionConfig,
   Transition,
-} from './sop_definition';
+} from './sop_definition.js';
 export {
   RETRYABLE_STEP_RESULT_STATUSES,
-} from './sop_definition';
+} from './sop_definition.js';
 export {
   ExpressionSyntaxError,
   parseExpressionBody,
   parseExpressionTemplate,
-} from './expression';
+} from './expression.js';
 export type {
   CoalesceExpression,
   ExpressionLiteral,
@@ -64,4 +64,4 @@ export type {
   ExpressionSegment,
   TemplateSegment,
   TextSegment,
-} from './expression';
+} from './expression.js';

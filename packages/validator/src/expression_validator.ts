@@ -4,8 +4,8 @@
  * 针对 SOP 定义中嵌入模板表达式的引用校验器。
  */
 import {ExpressionNode, ExpressionSyntaxError, SopDefinition, parseExpressionTemplate} from '@sop-runtime/definition';
-import {Diagnostic} from './diagnostic';
-import {joinPath} from './path';
+import {Diagnostic} from './diagnostic.js';
+import {joinPath} from './path.js';
 
 type SchemaPathResult = 'missing' | 'present' | 'unknown';
 

@@ -3,7 +3,7 @@
  *
  * 供校验器与运行时共享的 SOP 编排定义类型。
  */
-import {JsonObject} from './json_value';
+import {JsonObject} from './json_value.js';
 
 /**
  * Transition selected after a supervised outcome is applied.

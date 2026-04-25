@@ -3,7 +3,7 @@
  *
  * 用于解析 SOP 定义中 `${...}` 模板表达式的轻量解析器。
  */
-import {JsonValue} from './json_value';
+import {JsonValue} from './json_value.js';
 
 /**
  * Literal expression node.

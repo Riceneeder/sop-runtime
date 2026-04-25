@@ -3,8 +3,8 @@
  *
  * 运行时组件之间交换的执行阶段数据结构。
  */
-import {ExecutorConfig} from './sop_definition';
-import {JsonObject} from './json_value';
+import {ExecutorConfig} from './sop_definition.js';
+import {JsonObject} from './json_value.js';
 
 /**
  * Result statuses accepted into persistent run history.

@@ -1,8 +1,11 @@
-import {CoreStepPacket} from '@sop-runtime/core';
+import {CoreStepPacket as RuntimeStepPacket} from '@sop-runtime/core';
 import {StepResult} from '@sop-runtime/definition';
 
 export type ExecutorResult = StepResult;
+export type {RuntimeStepPacket};
 
+/** Adapter boundary for sandbox, tool, agent, or local command execution. */
 export interface StepExecutor {
-  execute(packet: CoreStepPacket): Promise<ExecutorResult>;
+  /** Executes one current-step packet and returns a raw step result for core validation. */
+  execute(packet: RuntimeStepPacket): Promise<ExecutorResult>;
 }
