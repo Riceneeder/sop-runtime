@@ -8,7 +8,7 @@ import {
 } from './state_store.js';
 import {RuntimeError} from './runtime_error.js';
 
-/** Single-process StateStore implementation for tests and lightweight embedding. */
+/** Single-process StateStore implementation for tests and lightweight embedding. 面向测试与轻量嵌入场景的单进程 StateStore 实现。 */
 export class InMemoryStateStore implements StateStore {
   private readonly runs = new Map<string, RunState>();
   private readonly records = new Map<string, RunRecord>();
@@ -49,7 +49,7 @@ export class InMemoryStateStore implements StateStore {
   }
 
   async claimRunStart(params: ClaimRunStartParams): Promise<ClaimRunStartResult> {
-    // Keep all start-policy checks and writes in one synchronous critical section.
+    // Keep all start-policy checks and writes in one synchronous critical section. 在同一个同步临界区完成启动策略校验与写入。
     const idempotentRecord = this.findRecord((candidate) => {
       return candidate.sop_id === params.record.sop_id
         && candidate.sop_version === params.record.sop_version

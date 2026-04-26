@@ -25,26 +25,26 @@ import {StepExecutor} from './step_executor.js';
 
 export type StartRunReason = RunStartClaimReason;
 
-/** Starts or reuses a run for one validated SOP definition and input payload. */
+/** Starts or reuses a run for one validated SOP definition and input payload. 基于一份已校验的 SOP 定义与输入，启动或复用一次运行。 */
 export interface StartRunParams {
   definition: SopDefinition;
   input: JsonObject;
-  /** Optional caller-provided run id. Store implementations must reject collisions. */
+  /** Optional caller-provided run id. Store implementations must reject collisions. 调用方可选提供 run id；Store 实现必须拒绝冲突。 */
   runId?: string;
 }
 
-/** State, record, and policy reason returned by startRun. */
+/** State, record, and policy reason returned by startRun. startRun 返回的状态、记录与策略原因。 */
 export interface StartRunResult {
   state: RunState;
   reason: StartRunReason;
   record: RunRecord;
 }
 
-/** Drives a persisted run until termination or until the guard limit is reached. */
+/** Drives a persisted run until termination or until the guard limit is reached. 驱动已持久化运行直至终止，或达到保护步数上限。 */
 export interface RunUntilCompleteParams {
   definition: SopDefinition;
   runId: string;
-  /** Protects callers from malformed graphs or custom providers that never terminate. */
+  /** Protects callers from malformed graphs or custom providers that never terminate. 防止异常流程图或自定义提供器导致无限执行。 */
   maxRuntimeSteps?: number;
 }
 
@@ -53,7 +53,7 @@ export interface RunUntilCompleteResult {
   final_output?: FinalOutput;
 }
 
-/** Ports required by RuntimeHost plus optional defaults for local embedding. */
+/** Ports required by RuntimeHost plus optional defaults for local embedding. RuntimeHost 所需端口，以及用于本地嵌入的可选默认实现。 */
 export interface RuntimeHostOptions {
   store: StateStore;
   executor: StepExecutor;
@@ -66,11 +66,15 @@ export interface RuntimeHostOptions {
 
 /**
  * Embeddable orchestrator that connects the pure core engine to runtime ports.
+ * 可嵌入的编排器，用于把纯 core 引擎连接到 runtime 端口。
  *
  * RuntimeHost owns orchestration policy checks such as idempotency, concurrency,
  * cooldown, max_run_secs, event emission, and final-output rendering. It does not
  * implement distributed step leases; callers should avoid driving the same run
  * concurrently unless their StateStore/adapter adds that coordination.
+ * RuntimeHost 负责幂等、并发、冷却、max_run_secs、事件发射与最终输出渲染等编排策略校验；
+ * 它不实现分布式步骤租约机制，除非 StateStore/适配器额外提供协调能力，
+ * 否则调用方应避免并发驱动同一个 run。
  */
 export class RuntimeHost {
   private readonly store: StateStore;
@@ -163,7 +167,7 @@ export class RuntimeHost {
     });
 
     const result = await this.executor.execute(packet);
-    // External execution can cross the run deadline; do not persist stale results.
+    // External execution can cross the run deadline; do not persist stale results. 外部执行可能越过运行截止时间，不应持久化过期结果。
     state = await this.enforceMaxRunSecs(params.definition, state);
     if (state.phase === 'terminated') {
       return state;
@@ -203,7 +207,7 @@ export class RuntimeHost {
       state,
       'accepted_result': acceptedResult,
     });
-    // Decision providers can also cross the deadline before returning.
+    // Decision providers can also cross the deadline before returning. 决策提供器返回前也可能跨过截止时间。
     state = await this.enforceMaxRunSecs(params.definition, state);
     if (state.phase === 'terminated') {
       return state;
