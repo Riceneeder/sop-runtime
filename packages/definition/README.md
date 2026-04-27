@@ -2,6 +2,10 @@
 
 `@sop-runtime/definition` 是 SOP 执行系统里的“共享定义层”。它不负责真正执行步骤，也不做 admission check；它的职责是提供一套稳定的类型、常量和表达式解析能力，供其他包复用。
 
+## 什么时候读
+
+当你需要确认 SOP definition、运行时状态、step result、decision 或模板表达式 AST 的字段契约时，读这个包。若只是想先跑通完整流程，建议从[根 README](../../README.md) 和 [`examples/basic_sop_definition.json`](../../examples/basic_sop_definition.json) 开始。
+
 ## 包定位
 
 这个包提供三类能力：

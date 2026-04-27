@@ -2,6 +2,10 @@
 
 `@sop-runtime/runtime` 是 SOP 执行系统里的可嵌入运行层。它把 `@sop-runtime/core` 的纯状态机能力和外部端口组合起来，负责启动 run、执行当前步骤、接收监督决策、持久化状态，并在终止时渲染最终输出。
 
+## 什么时候读
+
+当你准备把已校验的 SOP definition 接到实际执行环境时，读这个包。这里的重点是 `RuntimeHost` 和端口契约；若只是想理解 definition 长什么样，先看[根 README](../../README.md) 和 [`examples/basic_sop_definition.json`](../../examples/basic_sop_definition.json)。
+
 ## 包定位
 
 这个包位于依赖链的最外层：

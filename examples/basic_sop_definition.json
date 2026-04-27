@@ -1,0 +1,116 @@
+{
+  "$schema": "../schemas/sop-definition.schema.json",
+  "sop_id": "basic_sop",
+  "name": "Basic SOP",
+  "version": "1.0.0",
+  "description": "A minimal SOP definition accepted by the current validator.",
+  "entry_step": "collect_context",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "ticket_id",
+      "workspace"
+    ],
+    "properties": {
+      "ticket_id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "workspace": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "additionalProperties": false
+  },
+  "defaults": {
+    "workspace": "/tmp/sop-runtime-basic"
+  },
+  "policies": {
+    "cooldown_secs": 0,
+    "max_run_secs": 300,
+    "idempotency_key_template": "basic:${run.input.ticket_id}",
+    "concurrency": {
+      "mode": "singleflight",
+      "key_template": "basic:${run.input.ticket_id}"
+    }
+  },
+  "steps": [
+    {
+      "id": "collect_context",
+      "title": "Collect Context",
+      "description": "Collect the context needed to handle one ticket.",
+      "inputs": {
+        "ticket_id": "${run.input.ticket_id}",
+        "workspace": "${run.input.workspace}"
+      },
+      "executor": {
+        "kind": "sandbox_tool",
+        "tool": "collect_context",
+        "command_template": "collect-context --ticket {{ticket_id}} --workspace {{workspace}}",
+        "path": "${run.input.workspace}",
+        "timeout_secs": 120,
+        "allow_network": false,
+        "env": {},
+        "resource_limits": {
+          "max_output_bytes": 4096,
+          "max_artifacts": 2
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "summary",
+          "next_action"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "next_action": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_secs": [
+          5
+        ],
+        "retry_on": [
+          "tool_error",
+          "timeout"
+        ]
+      },
+      "supervision": {
+        "owner": "main_agent",
+        "allowed_outcomes": [
+          {
+            "id": "complete",
+            "description": "Accept the collected context and finish the run."
+          }
+        ],
+        "default_outcome": "complete"
+      },
+      "transitions": {
+        "complete": {
+          "terminate": {
+            "run_status": "succeeded",
+            "reason": "context_collected"
+          }
+        }
+      }
+    }
+  ],
+  "final_output": {
+    "ticket_id": "${run.input.ticket_id}",
+    "summary": "${steps.collect_context.output.summary}",
+    "next_action": "${steps.collect_context.output.next_action}"
+  },
+  "metadata": {
+    "example": true
+  }
+}

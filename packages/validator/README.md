@@ -2,6 +2,10 @@
 
 `@sop-runtime/validator` 是 SOP 定义的 admission check 层。它接收一个 `SopDefinition` 风格的对象，按固定顺序执行结构、语义和表达式三类校验，最后返回统一的 `ValidationResult`。
 
+## 什么时候读
+
+当你需要判断一份 SOP definition 为什么能被接受或为什么被拒绝时，读这个包。若只是需要一份可通过校验的输入样例，先看[根 README](../../README.md) 和 [`examples/basic_sop_definition.json`](../../examples/basic_sop_definition.json)。
+
 ## 包定位
 
 这个包只做一件事：校验 SOP 定义能否被系统接受。
