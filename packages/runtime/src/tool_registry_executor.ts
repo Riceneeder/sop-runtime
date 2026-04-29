@@ -99,6 +99,14 @@ export class ToolRegistryExecutor implements StepExecutor {
       });
     }
 
+    if (!isStrictPlainObject(invocation.result)) {
+      return this.buildErrorResult(packet, {
+        'status': 'tool_error',
+        'code': INVALID_HANDLER_OUTPUT_ERROR_CODE,
+        'message': 'Tool handler returned an invalid result payload.',
+      });
+    }
+
     const output = invocation.result.output ?? {};
     if (!isJsonSafeObject(output)) {
       return this.buildErrorResult(packet, {
@@ -302,22 +310,30 @@ function isJsonSafeValue(value: unknown, seen: Set<object>): boolean {
   if (valueType === 'number') {
     return Number.isFinite(value);
   }
+  if (valueType !== 'object') {
+    return false;
+  }
+  const objectValue = value as object;
+  if (seen.has(objectValue)) {
+    return false;
+  }
+  seen.add(objectValue);
   if (Array.isArray(value)) {
-    return value.every((entry) => isJsonSafeValue(entry, seen));
+    const areEntriesSafe = value.every((entry) => isJsonSafeValue(entry, seen));
+    seen.delete(objectValue);
+    return areEntriesSafe;
   }
   if (!isStrictPlainObject(value)) {
+    seen.delete(objectValue);
     return false;
   }
-  if (seen.has(value)) {
-    return false;
-  }
-  seen.add(value);
   for (const entry of Object.values(value)) {
     if (!isJsonSafeValue(entry, seen)) {
+      seen.delete(objectValue);
       return false;
     }
   }
-  seen.delete(value);
+  seen.delete(objectValue);
   return true;
 }
 

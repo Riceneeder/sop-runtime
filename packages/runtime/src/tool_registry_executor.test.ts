@@ -224,6 +224,39 @@ describe('ToolRegistryExecutor', () => {
     expectResultIdentity(result, packet);
   });
 
+  test('returns tool_error when handler result is null', async () => {
+    const executor = new ToolRegistryExecutor({
+      'handlers': {
+        async demo_tool() {
+          return null as never;
+        },
+      },
+    });
+
+    const result = await executor.execute(buildPacket());
+
+    expect(result.status).toBe('tool_error');
+    expect(result.error?.code).toBe('invalid_handler_output');
+  });
+
+  test('returns tool_error when handler output contains cyclic arrays', async () => {
+    const cyclicArray: unknown[] = [];
+    cyclicArray.push(cyclicArray);
+
+    const executor = new ToolRegistryExecutor({
+      'handlers': {
+        async demo_tool() {
+          return {'output': {'items': cyclicArray}};
+        },
+      },
+    });
+
+    const result = await executor.execute(buildPacket());
+
+    expect(result.status).toBe('tool_error');
+    expect(result.error?.code).toBe('invalid_handler_output');
+  });
+
 
   test('returns tool_error when handler output is not a JSON-safe object', async () => {
     const executor = new ToolRegistryExecutor({
