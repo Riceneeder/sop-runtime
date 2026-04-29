@@ -8,6 +8,11 @@ const TOOL_HANDLER_TIMEOUT_ERROR_CODE = 'tool_handler_timeout';
 const NON_SERIALIZABLE_OUTPUT_ERROR_CODE = 'non_serializable_output';
 const OUTPUT_SIZE_EXCEEDED_ERROR_CODE = 'max_output_bytes_exceeded';
 const ARTIFACT_COUNT_EXCEEDED_ERROR_CODE = 'max_artifacts_exceeded';
+const INVALID_HANDLER_OUTPUT_ERROR_CODE = 'invalid_handler_output';
+const INVALID_HANDLER_ARTIFACTS_ERROR_CODE = 'invalid_handler_artifacts';
+const INVALID_HANDLER_METRICS_ERROR_CODE = 'invalid_handler_metrics';
+
+const MAX_SET_TIMEOUT_MS = 2_147_483_647;
 
 export interface ToolHandlerInput {
   run_id: string;
@@ -66,7 +71,7 @@ export class ToolRegistryExecutor implements StepExecutor {
       'step_id': packet.step_id,
       'attempt': packet.attempt,
       'inputs': packet.inputs,
-      command,
+      'command': command,
       'executor': packet.executor,
     }), packet.executor.timeout_secs);
 
@@ -95,7 +100,30 @@ export class ToolRegistryExecutor implements StepExecutor {
     }
 
     const output = invocation.result.output ?? {};
+    if (!isJsonSafeObject(output)) {
+      return this.buildErrorResult(packet, {
+        'status': 'tool_error',
+        'code': INVALID_HANDLER_OUTPUT_ERROR_CODE,
+        'message': 'Tool handler returned an invalid output payload.',
+      });
+    }
+
     const artifacts = invocation.result.artifacts ?? {};
+    if (!isStringRecord(artifacts)) {
+      return this.buildErrorResult(packet, {
+        'status': 'tool_error',
+        'code': INVALID_HANDLER_ARTIFACTS_ERROR_CODE,
+        'message': 'Tool handler returned invalid artifacts.',
+      });
+    }
+
+    if (invocation.result.metrics !== undefined && !isJsonSafeObject(invocation.result.metrics)) {
+      return this.buildErrorResult(packet, {
+        'status': 'tool_error',
+        'code': INVALID_HANDLER_METRICS_ERROR_CODE,
+        'message': 'Tool handler returned invalid metrics.',
+      });
+    }
     const outputSize = computeJsonUtf8Size(output);
     if (outputSize === null) {
       return this.buildErrorResult(packet, {
@@ -173,10 +201,10 @@ export class ToolRegistryExecutor implements StepExecutor {
     > {
     const safePromise = Promise.resolve()
       .then(() => task())
-      .then((result) => ({'kind': 'result' as const, result}))
-      .catch((error) => ({'kind': 'error' as const, error}));
+      .then((result) => ({'kind': 'result' as const, 'result': result}))
+      .catch((error) => ({'kind': 'error' as const, 'error': error}));
 
-    const timeoutMs = Math.max(0, timeoutSecs * 1000);
+    const timeoutMs = normalizeTimeoutMs(timeoutSecs);
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<{kind: 'timeout'}>((resolve) => {
       timeoutHandle = setTimeout(() => {
@@ -244,4 +272,63 @@ function toErrorMessage(error: unknown): string {
     return error.message;
   }
   return String(error);
+}
+
+function normalizeTimeoutMs(timeoutSecs: number): number {
+  const timeoutMs = Math.max(0, timeoutSecs * 1000);
+  return Math.min(timeoutMs, MAX_SET_TIMEOUT_MS);
+}
+
+function isJsonSafeObject(value: unknown): value is JsonObject {
+  return isStrictPlainObject(value) && isJsonSafeValue(value, new Set<object>());
+}
+
+function isStrictPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function isJsonSafeValue(value: unknown, seen: Set<object>): boolean {
+  if (value === null) {
+    return true;
+  }
+  const valueType = typeof value;
+  if (valueType === 'string' || valueType === 'boolean') {
+    return true;
+  }
+  if (valueType === 'number') {
+    return Number.isFinite(value);
+  }
+  if (Array.isArray(value)) {
+    return value.every((entry) => isJsonSafeValue(entry, seen));
+  }
+  if (!isStrictPlainObject(value)) {
+    return false;
+  }
+  if (seen.has(value)) {
+    return false;
+  }
+  seen.add(value);
+  for (const entry of Object.values(value)) {
+    if (!isJsonSafeValue(entry, seen)) {
+      return false;
+    }
+  }
+  seen.delete(value);
+  return true;
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  if (!isStrictPlainObject(value)) {
+    return false;
+  }
+  for (const entry of Object.values(value)) {
+    if (typeof entry !== 'string') {
+      return false;
+    }
+  }
+  return true;
 }

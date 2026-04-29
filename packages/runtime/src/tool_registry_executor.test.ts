@@ -204,7 +204,7 @@ describe('ToolRegistryExecutor', () => {
     expectResultIdentity(result, packet);
   });
 
-  test('returns sandbox_error when output cannot be serialized', async () => {
+  test('returns tool_error when handler output contains cycles', async () => {
     const cyclic = {} as {self?: unknown};
     cyclic.self = cyclic;
 
@@ -219,11 +219,77 @@ describe('ToolRegistryExecutor', () => {
 
     const result = await executor.execute(packet);
 
-    expect(result.status).toBe('sandbox_error');
-    expect(result.error?.code).toBe('non_serializable_output');
+    expect(result.status).toBe('tool_error');
+    expect(result.error?.code).toBe('invalid_handler_output');
     expectResultIdentity(result, packet);
   });
 
+
+  test('returns tool_error when handler output is not a JSON-safe object', async () => {
+    const executor = new ToolRegistryExecutor({
+      'handlers': {
+        async demo_tool() {
+          return {'output': [] as never};
+        },
+      },
+    });
+
+    const result = await executor.execute(buildPacket());
+
+    expect(result.status).toBe('tool_error');
+    expect(result.error?.code).toBe('invalid_handler_output');
+  });
+
+  test('returns tool_error when handler artifacts are not a string record', async () => {
+    const executor = new ToolRegistryExecutor({
+      'handlers': {
+        async demo_tool() {
+          return {'output': {'ok': true}, 'artifacts': {'a': 1} as never};
+        },
+      },
+    });
+
+    const result = await executor.execute(buildPacket());
+
+    expect(result.status).toBe('tool_error');
+    expect(result.error?.code).toBe('invalid_handler_artifacts');
+  });
+
+  test('returns tool_error when handler metrics are not a JSON-safe object', async () => {
+    const executor = new ToolRegistryExecutor({
+      'handlers': {
+        async demo_tool() {
+          return {'output': {'ok': true}, 'metrics': [] as never};
+        },
+      },
+    });
+
+    const result = await executor.execute(buildPacket());
+
+    expect(result.status).toBe('tool_error');
+    expect(result.error?.code).toBe('invalid_handler_metrics');
+  });
+
+  test('clamps very large timeout_secs values to avoid immediate timeout overflow', async () => {
+    const executor = new ToolRegistryExecutor({
+      'handlers': {
+        async demo_tool() {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          return {'output': {'ok': true}};
+        },
+      },
+    });
+    const packet = buildPacket({
+      'executor': {
+        ...buildPacket().executor,
+        'timeout_secs': 3_000_000,
+      },
+    });
+
+    const result = await executor.execute(packet);
+
+    expect(result.status).toBe('success');
+  });
   test('returns tool_error for sandbox_script', async () => {
     const executor = new ToolRegistryExecutor({'handlers': {}});
     const packet = buildPacket({
