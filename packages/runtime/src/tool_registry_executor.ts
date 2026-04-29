@@ -163,8 +163,8 @@ export class ToolRegistryExecutor implements StepExecutor {
       'step_id': packet.step_id,
       'attempt': packet.attempt,
       'status': 'success',
-      output,
-      artifacts,
+      'output': output,
+      'artifacts': artifacts,
       'metrics': invocation.result.metrics,
     };
   }

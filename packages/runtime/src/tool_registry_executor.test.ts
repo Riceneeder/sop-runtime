@@ -460,7 +460,7 @@ describe('ToolRegistryExecutor integration with RuntimeHost', () => {
 
     const host = new RuntimeHost({
       'store': new InMemoryStateStore(),
-      executor,
+      'executor': executor,
       'decisionProvider': new DefaultDecisionProvider(),
     });
 
