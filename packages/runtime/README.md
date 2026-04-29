@@ -90,6 +90,15 @@ console.log(completed.state.status);
 console.log(completed.final_output);
 ```
 
+
+## ToolRegistryExecutor
+
+`ToolRegistryExecutor` 是 runtime 内置的轻量执行器，专门用于 `sandbox_tool` 步骤。
+
+- 通过构造函数注册工具处理器（tool handlers），由宿主应用提供具体工具能力。
+- 对 `sandbox_script` 与 `sandbox_model` 会返回结构化 `tool_error`，当前刻意不支持。
+- 适用于本地嵌入、测试、demo，以及由宿主应用已控制工具能力的早期生产集成。
+
 ## RuntimeHost 生命周期
 
 `RuntimeHost` 暴露三个主要方法：
