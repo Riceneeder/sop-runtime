@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'bun:test';
-import {SopDefinition, StepResult} from '@sop-runtime/definition';
+import {JsonObject, SopDefinition, StepResult} from '@sop-runtime/definition';
 import {
   DefaultDecisionProvider,
   InMemoryStateStore,
@@ -246,7 +246,7 @@ describe('ToolRegistryExecutor', () => {
     const executor = new ToolRegistryExecutor({
       'handlers': {
         async demo_tool() {
-          return {'output': {'items': cyclicArray}};
+          return {'output': {'items': cyclicArray as unknown as JsonObject}};
         },
       },
     });
