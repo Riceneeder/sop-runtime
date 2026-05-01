@@ -38,6 +38,7 @@ export interface ToolRegistryExecutorOptions {
 /**
  * Lightweight built-in executor that dispatches packets to host-registered handlers.
  *
+ * @deprecated Use `RuntimeHost.registerExecutor(kind, name, handler)` instead.
  * This is a legacy reference implementation. It only handles kind === 'sandbox_tool'
  * for backward compatibility. Future SDK direction is to use RuntimeHost.registerExecutor
  * which dispatches by kind + name without hardcoded kind checks.

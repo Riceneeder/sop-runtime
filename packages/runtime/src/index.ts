@@ -18,9 +18,11 @@ export type {
   AfterStepHookInput,
   BeforeStepHook,
   BeforeStepHookInput,
+  HookControl,
+} from './hook_pipeline.js';
+export type {
   ExecutorHandler,
   ExecutorHandlerInput,
-  HookControl,
   RunUntilCompleteParams,
   RunUntilCompleteResult,
   RuntimeHostOptions,
