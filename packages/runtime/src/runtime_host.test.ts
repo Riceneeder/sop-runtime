@@ -1,15 +1,32 @@
 import {describe, expect, test} from 'bun:test';
-import {Decision, SopDefinition, StepPacket, StepResult} from '@sop-runtime/definition';
+import {Decision, JsonObject, SopDefinition, StepResult} from '@sop-runtime/definition';
 import {
   DefaultDecisionProvider,
   DecisionProvider,
   EventSink,
+  ExecutorHandler,
   InMemoryStateStore,
-  RuntimeEvent,
   RuntimeError,
+  RuntimeEvent,
   RuntimeHost,
-  StepExecutor,
+  BeforeStepHook,
 } from './index.js';
+
+interface PacketSnapshot {
+  run_id: string;
+  step_id: string;
+  attempt: number;
+  inputs: JsonObject;
+  executor: {
+    kind: string;
+    name: string;
+    config?: JsonObject;
+    timeout_secs: number;
+    allow_network: boolean;
+    env: Record<string, string>;
+    resource_limits: { max_output_bytes: number; max_artifacts: number };
+  };
+}
 
 class FixedClock {
   private current: string;
@@ -37,46 +54,53 @@ class SequentialIdGenerator {
   }
 }
 
-class RecordingExecutor implements StepExecutor {
-  readonly packets: StepPacket[] = [];
-
-  async execute(packet: StepPacket): Promise<StepResult> {
-    this.packets.push(packet);
+function recordingExecutor(): { handler: ExecutorHandler; packets: PacketSnapshot[] } {
+  const packets: PacketSnapshot[] = [];
+  const handler: ExecutorHandler = (input) => {
+    packets.push({
+      'run_id': input.packet.run_id,
+      'step_id': input.packet.step_id,
+      'attempt': input.packet.attempt,
+      'inputs': input.packet.inputs,
+      'executor': input.packet.executor,
+    });
     return {
-      'run_id': packet.run_id,
-      'step_id': packet.step_id,
-      'attempt': packet.attempt,
+      'run_id': input.packet.run_id,
+      'step_id': input.packet.step_id,
+      'attempt': input.packet.attempt,
       'status': 'success',
       'output': {
-        'summary': `summary for ${String(packet.inputs.company)}`,
+        'summary': `summary for ${String(input.packet.inputs.company)}`,
       },
       'artifacts': {
-        'report_md': `/tmp/${packet.run_id}.md`,
+        'report_md': `/tmp/${input.packet.run_id}.md`,
       },
     };
-  }
+  };
+  return {handler, packets};
 }
 
-class ClockAdvancingExecutor implements StepExecutor {
-  readonly packets: StepPacket[] = [];
-
-  constructor(
-    private readonly clock: FixedClock,
-    private readonly nextNow: string,
-  ) {}
-
-  async execute(packet: StepPacket): Promise<StepResult> {
-    this.packets.push(packet);
-    this.clock.setNow(this.nextNow);
+function clockAdvancingExecutor(clock: FixedClock, nextNow: string): { handler: ExecutorHandler; packets: PacketSnapshot[] } {
+  const packets: PacketSnapshot[] = [];
+  const handler: ExecutorHandler = (input) => {
+    packets.push({
+      'run_id': input.packet.run_id,
+      'step_id': input.packet.step_id,
+      'attempt': input.packet.attempt,
+      'inputs': input.packet.inputs,
+      'executor': input.packet.executor,
+    });
+    clock.setNow(nextNow);
     return {
-      'run_id': packet.run_id,
-      'step_id': packet.step_id,
-      'attempt': packet.attempt,
+      'run_id': input.packet.run_id,
+      'step_id': input.packet.step_id,
+      'attempt': input.packet.attempt,
       'status': 'success',
       'output': {'summary': 'summary after deadline'},
-      'artifacts': {'report_md': `/tmp/${packet.run_id}.md`},
+      'artifacts': {'report_md': `/tmp/${input.packet.run_id}.md`},
     };
-  }
+  };
+  return {handler, packets};
 }
 
 class ClockAdvancingDecisionProvider implements DecisionProvider {
@@ -137,8 +161,8 @@ function buildDefinition(overrides: Partial<SopDefinition['policies']> = {}): So
       },
       'executor': {
         'kind': 'tool',
-          'name': 'tool',
-          'config': { 'command_template': 'run', 'path': '/tmp' },
+        'name': 'default_tool',
+        'config': {'command_template': 'run', 'path': '/tmp'},
         'timeout_secs': 120,
         'allow_network': true,
         'env': {},
@@ -180,17 +204,33 @@ function buildDefinition(overrides: Partial<SopDefinition['policies']> = {}): So
   };
 }
 
+function buildHost(overrides: {
+  clock?: FixedClock;
+  idGenerator?: SequentialIdGenerator;
+  decisionProvider?: DecisionProvider;
+  eventSink?: RecordingEventSink;
+} = {}): { host: RuntimeHost; store: InMemoryStateStore } {
+  const store = new InMemoryStateStore();
+  const host = new RuntimeHost({
+    store,
+    'decisionProvider': overrides.decisionProvider ?? new DefaultDecisionProvider(),
+    'clock': overrides.clock ?? new FixedClock('2026-04-20T12:00:00.000Z'),
+    'idGenerator': overrides.idGenerator ?? new SequentialIdGenerator(),
+    'eventSink': overrides.eventSink,
+  });
+  return {host, store};
+}
+
+function registerDefaultExecutor(host: RuntimeHost): { packets: PacketSnapshot[] } {
+  const {handler, packets} = recordingExecutor();
+  host.registerExecutor('tool', 'default_tool', handler);
+  return {packets};
+}
+
 describe('RuntimeHost', () => {
   test('starts a run, executes the ready step, applies the default decision, and renders final output', async () => {
-    const store = new InMemoryStateStore();
-    const executor = new RecordingExecutor();
-    const host = new RuntimeHost({
-      store,
-      executor,
-      'decisionProvider': new DefaultDecisionProvider(),
-      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
-      'idGenerator': new SequentialIdGenerator(),
-    });
+    const {host} = buildHost();
+    const {packets} = registerDefaultExecutor(host);
 
     const started = await host.startRun({
       'definition': buildDefinition(),
@@ -207,19 +247,115 @@ describe('RuntimeHost', () => {
       'summary': 'summary for Acme',
       'artifact': '/tmp/run_001.md',
     });
-    expect(executor.packets).toHaveLength(1);
-    expect(await store.loadRun('run_001')).toEqual(completed.state);
+    expect(packets).toHaveLength(1);
+    expect(await host.getRunState({'runId': 'run_001'})).toEqual(completed.state);
+  });
+
+  test('throws executor_not_registered when no handler is registered for the executor kind+name', async () => {
+    const {host} = buildHost();
+    // Deliberately do NOT register any executor
+    const started = await host.startRun({
+      'definition': buildDefinition(),
+      'input': {'company': 'Acme'},
+    });
+
+    let execError: unknown;
+    try {
+      await host.runReadyStep({
+        'definition': buildDefinition(),
+        'runId': started.state.run_id,
+      });
+    } catch (caught) {
+      execError = caught;
+    }
+
+    expect(execError).toBeInstanceOf(RuntimeError);
+    expect((execError as RuntimeError).code).toBe('executor_not_registered');
+  });
+
+  test('dispatches to the correct handler based on kind + name', async () => {
+    const {host} = buildHost();
+    const packetsA: PacketSnapshot[] = [];
+    const packetsB: PacketSnapshot[] = [];
+
+    host.registerExecutor('kind_a', 'name_x', (input) => {
+      packetsA.push({
+        'run_id': input.packet.run_id,
+        'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt,
+        'inputs': input.packet.inputs,
+        'executor': input.packet.executor,
+      });
+      return { 'run_id': input.packet.run_id, 'step_id': input.packet.step_id, 'attempt': input.packet.attempt, 'status': 'success', 'output': {} };
+    });
+    host.registerExecutor('kind_b', 'name_y', (input) => {
+      packetsB.push({
+        'run_id': input.packet.run_id,
+        'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt,
+        'inputs': input.packet.inputs,
+        'executor': input.packet.executor,
+      });
+      return { 'run_id': input.packet.run_id, 'step_id': input.packet.step_id, 'attempt': input.packet.attempt, 'status': 'success', 'output': {} };
+    });
+
+    // Build a definition that uses kind_a:name_x
+    const stepA = buildDefinition().steps[0]!;
+    const definitionA: SopDefinition = {
+      ...buildDefinition(),
+      'steps': [{
+        ...stepA,
+        'executor': {
+          ...stepA.executor,
+          'kind': 'kind_a',
+          'name': 'name_x',
+        },
+      }],
+    };
+    const startedA = await host.startRun({ 'definition': definitionA, 'input': {'company': 'A'} });
+    await host.runReadyStep({ 'definition': definitionA, 'runId': startedA.state.run_id });
+
+    expect(packetsA).toHaveLength(1);
+    expect(packetsB).toHaveLength(0);
+  });
+
+  test('handler cannot bypass core state transition — invalid result is rejected', async () => {
+    const {host} = buildHost();
+    // Register a handler that returns an invalid status
+    host.registerExecutor('tool', 'default_tool', (input) => {
+      return {
+        'run_id': input.packet.run_id,
+        'step_id': 'wrong_step',
+        'attempt': 999,
+        'status': 'success',
+        'output': {},
+      } as StepResult;
+    });
+
+    const started = await host.startRun({
+      'definition': buildDefinition(),
+      'input': {'company': 'Acme'},
+    });
+
+    let coreError: unknown;
+    try {
+      await host.runReadyStep({
+        'definition': buildDefinition(),
+        'runId': started.state.run_id,
+      });
+    } catch (caught) {
+      coreError = caught;
+    }
+
+    // The CoreError from applyStepResult should propagate
+    expect(coreError).toBeDefined();
+    expect((coreError as Error).name).toBe('CoreError');
   });
 
   test('reuses existing runs through idempotency and singleflight policy checks', async () => {
     const definition = buildDefinition();
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
-      'decisionProvider': new DefaultDecisionProvider(),
-      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
-      'idGenerator': new SequentialIdGenerator(),
-    });
+    const {host} = buildHost();
+    registerDefaultExecutor(host);
 
     const first = await host.startRun({
       definition,
@@ -265,23 +401,12 @@ describe('RuntimeHost', () => {
 
   test('atomically reuses the same run for concurrent idempotent starts', async () => {
     const definition = buildDefinition();
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
-      'decisionProvider': new DefaultDecisionProvider(),
-      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
-      'idGenerator': new SequentialIdGenerator(),
-    });
+    const {host} = buildHost();
+    registerDefaultExecutor(host);
 
     const [first, second] = await Promise.all([
-      host.startRun({
-        definition,
-        'input': {'company': 'Acme'},
-      }),
-      host.startRun({
-        definition,
-        'input': {'company': 'Acme'},
-      }),
+      host.startRun({definition, 'input': {'company': 'Acme'}}),
+      host.startRun({definition, 'input': {'company': 'Acme'}}),
     ]);
 
     expect(first.state.run_id).toBe('run_001');
@@ -298,18 +423,10 @@ describe('RuntimeHost', () => {
         'key_template': 'report:${run.input.company}',
       },
     });
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
-      'decisionProvider': new DefaultDecisionProvider(),
-      clock,
-      'idGenerator': new SequentialIdGenerator(),
-    });
+    const {host} = buildHost({clock});
+    registerDefaultExecutor(host);
 
-    const first = await host.startRun({
-      definition,
-      'input': {'company': 'Acme'},
-    });
+    const first = await host.startRun({definition, 'input': {'company': 'Acme'}});
     const dropped = await host.startRun({
       'definition': {
         ...definition,
@@ -320,10 +437,7 @@ describe('RuntimeHost', () => {
       },
       'input': {'company': 'Acme'},
     });
-    await host.runUntilComplete({
-      definition,
-      'runId': first.state.run_id,
-    });
+    await host.runUntilComplete({definition, 'runId': first.state.run_id});
 
     clock.setNow('2026-04-20T12:01:00.000Z');
     const cooldown = await host.startRun({
@@ -365,34 +479,19 @@ describe('RuntimeHost', () => {
     const store = new InMemoryStateStore();
     const host = new RuntimeHost({
       store,
-      'executor': new RecordingExecutor(),
       'decisionProvider': new DefaultDecisionProvider(),
       clock,
       'idGenerator': new SequentialIdGenerator(),
     });
+    registerDefaultExecutor(host);
 
-    const first = await host.startRun({
-      definition,
-      'input': {'company': 'Acme', 'request_id': 'first'},
-    });
-    const second = await host.startRun({
-      definition,
-      'input': {'company': 'Acme', 'request_id': 'second'},
-    });
-    await host.runUntilComplete({
-      definition,
-      'runId': first.state.run_id,
-    });
+    const first = await host.startRun({definition, 'input': {'company': 'Acme', 'request_id': 'first'}});
+    const second = await host.startRun({definition, 'input': {'company': 'Acme', 'request_id': 'second'}});
+    await host.runUntilComplete({definition, 'runId': first.state.run_id});
 
     clock.setNow('2026-04-20T12:01:00.000Z');
-    await host.runReadyStep({
-      definition,
-      'runId': second.state.run_id,
-    });
-    const third = await host.startRun({
-      definition,
-      'input': {'company': 'Acme', 'request_id': 'third'},
-    });
+    await host.runReadyStep({definition, 'runId': second.state.run_id});
+    const third = await host.startRun({definition, 'input': {'company': 'Acme', 'request_id': 'third'}});
 
     expect(third.state.run_id).toBe(first.state.run_id);
     expect(third.reason).toBe('cooldown_active');
@@ -408,31 +507,23 @@ describe('RuntimeHost', () => {
     const definition = buildDefinition({'max_run_secs': 60});
     const host = new RuntimeHost({
       store,
-      'executor': new RecordingExecutor(),
       'decisionProvider': new DefaultDecisionProvider(),
       clock,
       'idGenerator': new SequentialIdGenerator(),
     });
-    const started = await host.startRun({
-      definition,
-      'input': {'company': 'Acme'},
-    });
+    registerDefaultExecutor(host);
+
+    const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
     const wrongDefinition = {
       ...definition,
       'sop_id': 'other_runtime_report',
-      'policies': {
-        ...definition.policies,
-        'max_run_secs': 1,
-      },
+      'policies': {...definition.policies, 'max_run_secs': 1},
     } as SopDefinition;
 
     clock.setNow('2026-04-20T12:00:02.000Z');
     let mismatchError: unknown;
     try {
-      await host.runUntilComplete({
-        'definition': wrongDefinition,
-        'runId': started.state.run_id,
-      });
+      await host.runUntilComplete({'definition': wrongDefinition, 'runId': started.state.run_id});
     } catch (caught) {
       mismatchError = caught;
     }
@@ -452,35 +543,24 @@ describe('RuntimeHost', () => {
     const definition = buildDefinition({'max_run_secs': 60});
     const host = new RuntimeHost({
       store,
-      'executor': new RecordingExecutor(),
       'decisionProvider': new DefaultDecisionProvider(),
       clock,
       'idGenerator': new SequentialIdGenerator(),
     });
-    const started = await host.startRun({
-      definition,
-      'input': {'company': 'Acme'},
-    });
-    await host.runReadyStep({
-      definition,
-      'runId': started.state.run_id,
-    });
+    registerDefaultExecutor(host);
+
+    const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
+    await host.runReadyStep({definition, 'runId': started.state.run_id});
     const wrongDefinition = {
       ...definition,
       'sop_id': 'other_runtime_report',
-      'policies': {
-        ...definition.policies,
-        'max_run_secs': 1,
-      },
+      'policies': {...definition.policies, 'max_run_secs': 1},
     } as SopDefinition;
 
     clock.setNow('2026-04-20T12:00:02.000Z');
     let mismatchError: unknown;
     try {
-      await host.applyDecision({
-        'definition': wrongDefinition,
-        'runId': started.state.run_id,
-      });
+      await host.applyDecision({'definition': wrongDefinition, 'runId': started.state.run_id});
     } catch (caught) {
       mismatchError = caught;
     }
@@ -514,23 +594,15 @@ describe('RuntimeHost', () => {
     };
     const host = new RuntimeHost({
       store,
-      'executor': new RecordingExecutor(),
       'decisionProvider': new DefaultDecisionProvider(),
       'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
     });
+    registerDefaultExecutor(host);
 
-    await host.startRun({
-      definition,
-      'input': {'company': 'Acme', 'request_id': 'first'},
-      'runId': 'fixed_run',
-    });
+    await host.startRun({definition, 'input': {'company': 'Acme', 'request_id': 'first'}, 'runId': 'fixed_run'});
     let collisionError: unknown;
     try {
-      await host.startRun({
-        definition,
-        'input': {'company': 'Beta', 'request_id': 'second'},
-        'runId': 'fixed_run',
-      });
+      await host.startRun({definition, 'input': {'company': 'Beta', 'request_id': 'second'}, 'runId': 'fixed_run'});
     } catch (caught) {
       collisionError = caught;
     }
@@ -551,23 +623,13 @@ describe('RuntimeHost', () => {
   test('fails a run when max_run_secs is exceeded before the next runtime action', async () => {
     const clock = new FixedClock('2026-04-20T12:00:00.000Z');
     const definition = buildDefinition({'max_run_secs': 1});
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
-      'decisionProvider': new DefaultDecisionProvider(),
-      clock,
-      'idGenerator': new SequentialIdGenerator(),
-    });
-    const started = await host.startRun({
-      definition,
-      'input': {'company': 'Acme'},
-    });
+    const {host} = buildHost({clock});
+    registerDefaultExecutor(host);
+
+    const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
 
     clock.setNow('2026-04-20T12:00:02.000Z');
-    const completed = await host.runUntilComplete({
-      definition,
-      'runId': started.state.run_id,
-    });
+    const completed = await host.runUntilComplete({definition, 'runId': started.state.run_id});
 
     expect(completed.state.status).toBe('failed');
     expect(completed.state.terminal).toEqual({
@@ -579,57 +641,42 @@ describe('RuntimeHost', () => {
 
   test('enforces max_run_secs when callers execute one public runtime action at a time', async () => {
     const clock = new FixedClock('2026-04-20T12:00:00.000Z');
-    const executor = new RecordingExecutor();
     const definition = buildDefinition({'max_run_secs': 1});
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      executor,
-      'decisionProvider': new DefaultDecisionProvider(),
-      clock,
-      'idGenerator': new SequentialIdGenerator(),
-    });
-    const started = await host.startRun({
-      definition,
-      'input': {'company': 'Acme'},
-    });
+    const {host} = buildHost({clock});
+    const {packets} = registerDefaultExecutor(host);
+
+    const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
 
     clock.setNow('2026-04-20T12:00:02.000Z');
-    const expired = await host.runReadyStep({
-      definition,
-      'runId': started.state.run_id,
-    });
+    const expired = await host.runReadyStep({definition, 'runId': started.state.run_id});
 
     expect(expired.status).toBe('failed');
     expect(expired.terminal?.reason).toBe('max_run_secs_exceeded');
-    expect(executor.packets).toHaveLength(0);
+    expect(packets).toHaveLength(0);
   });
 
   test('fails a run instead of saving a step result when execution crosses max_run_secs', async () => {
     const clock = new FixedClock('2026-04-20T12:00:00.000Z');
-    const executor = new ClockAdvancingExecutor(clock, '2026-04-20T12:00:02.000Z');
     const definition = buildDefinition({'max_run_secs': 1});
+    const store = new InMemoryStateStore();
     const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      executor,
+      store,
       'decisionProvider': new DefaultDecisionProvider(),
       clock,
       'idGenerator': new SequentialIdGenerator(),
     });
-    const started = await host.startRun({
-      definition,
-      'input': {'company': 'Acme'},
-    });
+    const {handler, packets} = clockAdvancingExecutor(clock, '2026-04-20T12:00:02.000Z');
+    host.registerExecutor('tool', 'default_tool', handler);
 
-    const expired = await host.runReadyStep({
-      definition,
-      'runId': started.state.run_id,
-    });
+    const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
+
+    const expired = await host.runReadyStep({definition, 'runId': started.state.run_id});
 
     expect(expired.status).toBe('failed');
     expect(expired.phase).toBe('terminated');
     expect(expired.terminal?.reason).toBe('max_run_secs_exceeded');
     expect(expired.accepted_results.step_a).toBeUndefined();
-    expect(executor.packets).toHaveLength(1);
+    expect(packets).toHaveLength(1);
   });
 
   test('fails a run instead of applying a decision when the provider crosses max_run_secs', async () => {
@@ -637,24 +684,16 @@ describe('RuntimeHost', () => {
     const definition = buildDefinition({'max_run_secs': 1});
     const host = new RuntimeHost({
       'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
       'decisionProvider': new ClockAdvancingDecisionProvider(clock, '2026-04-20T12:00:02.000Z'),
       clock,
       'idGenerator': new SequentialIdGenerator(),
     });
-    const started = await host.startRun({
-      definition,
-      'input': {'company': 'Acme'},
-    });
-    await host.runReadyStep({
-      definition,
-      'runId': started.state.run_id,
-    });
+    registerDefaultExecutor(host);
 
-    const expired = await host.applyDecision({
-      definition,
-      'runId': started.state.run_id,
-    });
+    const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
+    await host.runReadyStep({definition, 'runId': started.state.run_id});
+
+    const expired = await host.applyDecision({definition, 'runId': started.state.run_id});
 
     expect(expired.status).toBe('failed');
     expect(expired.phase).toBe('terminated');
@@ -663,50 +702,27 @@ describe('RuntimeHost', () => {
 
   test('emits run_terminated events for normal terminal transitions', async () => {
     const eventSink = new RecordingEventSink();
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
-      'decisionProvider': new DefaultDecisionProvider(),
-      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
-      'idGenerator': new SequentialIdGenerator(),
-      eventSink,
-    });
-    const started = await host.startRun({
-      'definition': buildDefinition(),
-      'input': {'company': 'Acme'},
-    });
+    const {host} = buildHost({eventSink});
+    registerDefaultExecutor(host);
 
-    await host.runUntilComplete({
-      'definition': buildDefinition(),
-      'runId': started.state.run_id,
-    });
+    const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+    await host.runUntilComplete({'definition': buildDefinition(), 'runId': started.state.run_id});
 
     expect(eventSink.events.map((event) => event.kind)).toContain('run_terminated');
     expect(eventSink.events.at(-1)).toMatchObject({
       'kind': 'run_terminated',
       'run_id': 'run_001',
-      'details': {
-        'run_status': 'succeeded',
-        'reason': 'complete',
-      },
+      'details': {'run_status': 'succeeded', 'reason': 'complete'},
     });
   });
 
   test('rejects missing runs', async () => {
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
-      'decisionProvider': new DefaultDecisionProvider(),
-      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
-      'idGenerator': new SequentialIdGenerator(),
-    });
+    const {host} = buildHost();
+    registerDefaultExecutor(host);
 
     let missingRunError: unknown;
     try {
-      await host.runUntilComplete({
-        'definition': buildDefinition(),
-        'runId': 'missing',
-      });
+      await host.runUntilComplete({'definition': buildDefinition(), 'runId': 'missing'});
     } catch (caught) {
       missingRunError = caught;
     }
@@ -717,19 +733,10 @@ describe('RuntimeHost', () => {
 
   test('pauses a run and emits run_paused event', async () => {
     const eventSink = new RecordingEventSink();
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
-      'decisionProvider': new DefaultDecisionProvider(),
-      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
-      'idGenerator': new SequentialIdGenerator(),
-      eventSink,
-    });
-    const started = await host.startRun({
-      'definition': buildDefinition(),
-      'input': {'company': 'Acme'},
-    });
+    const {host} = buildHost({eventSink});
+    registerDefaultExecutor(host);
 
+    const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
     const paused = await host.pauseRun({
       'definition': buildDefinition(),
       'runId': started.state.run_id,
@@ -749,53 +756,26 @@ describe('RuntimeHost', () => {
 
   test('resumes a paused run and emits run_resumed event', async () => {
     const eventSink = new RecordingEventSink();
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
-      'decisionProvider': new DefaultDecisionProvider(),
-      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
-      'idGenerator': new SequentialIdGenerator(),
-      eventSink,
-    });
-    const started = await host.startRun({
-      'definition': buildDefinition(),
-      'input': {'company': 'Acme'},
-    });
-    await host.pauseRun({
-      'definition': buildDefinition(),
-      'runId': started.state.run_id,
-      'reason': 'inspect',
-    });
+    const {host} = buildHost({eventSink});
+    registerDefaultExecutor(host);
 
-    const resumed = await host.resumeRun({
-      'definition': buildDefinition(),
-      'runId': started.state.run_id,
-    });
+    const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+    await host.pauseRun({'definition': buildDefinition(), 'runId': started.state.run_id, 'reason': 'inspect'});
+
+    const resumed = await host.resumeRun({'definition': buildDefinition(), 'runId': started.state.run_id});
 
     expect(resumed.phase).toBe('ready');
     expect(resumed.pause).toBeUndefined();
     expect(eventSink.events.map((e) => e.kind)).toContain('run_resumed');
-    expect(eventSink.events.at(-1)).toMatchObject({
-      'kind': 'run_resumed',
-      'run_id': 'run_001',
-    });
+    expect(eventSink.events.at(-1)).toMatchObject({'kind': 'run_resumed', 'run_id': 'run_001'});
   });
 
   test('terminates a run and emits run_terminated event', async () => {
     const eventSink = new RecordingEventSink();
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
-      'decisionProvider': new DefaultDecisionProvider(),
-      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
-      'idGenerator': new SequentialIdGenerator(),
-      eventSink,
-    });
-    const started = await host.startRun({
-      'definition': buildDefinition(),
-      'input': {'company': 'Acme'},
-    });
+    const {host} = buildHost({eventSink});
+    registerDefaultExecutor(host);
 
+    const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
     const terminated = await host.terminateRun({
       'definition': buildDefinition(),
       'runId': started.state.run_id,
@@ -805,35 +785,18 @@ describe('RuntimeHost', () => {
 
     expect(terminated.phase).toBe('terminated');
     expect(terminated.status).toBe('cancelled');
-    expect(terminated.terminal).toEqual({
-      'run_status': 'cancelled',
-      'reason': 'operator cancelled',
-    });
+    expect(terminated.terminal).toEqual({'run_status': 'cancelled', 'reason': 'operator cancelled'});
     expect(eventSink.events.map((e) => e.kind)).toContain('run_terminated');
   });
 
   test('runUntilComplete returns immediately when run is paused', async () => {
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
-      'decisionProvider': new DefaultDecisionProvider(),
-      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
-      'idGenerator': new SequentialIdGenerator(),
-    });
-    const started = await host.startRun({
-      'definition': buildDefinition(),
-      'input': {'company': 'Acme'},
-    });
-    await host.pauseRun({
-      'definition': buildDefinition(),
-      'runId': started.state.run_id,
-      'reason': 'inspect',
-    });
+    const {host} = buildHost();
+    registerDefaultExecutor(host);
 
-    const result = await host.runUntilComplete({
-      'definition': buildDefinition(),
-      'runId': started.state.run_id,
-    });
+    const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+    await host.pauseRun({'definition': buildDefinition(), 'runId': started.state.run_id, 'reason': 'inspect'});
+
+    const result = await host.runUntilComplete({'definition': buildDefinition(), 'runId': started.state.run_id});
 
     expect(result.state.phase).toBe('paused');
     expect(result.final_output).toBeUndefined();
@@ -842,30 +805,519 @@ describe('RuntimeHost', () => {
   test('enforceMaxRunSecs terminates a paused run that exceeds max_run_secs', async () => {
     const clock = new FixedClock('2026-04-20T12:00:00.000Z');
     const definition = buildDefinition({'max_run_secs': 1});
-    const host = new RuntimeHost({
-      'store': new InMemoryStateStore(),
-      'executor': new RecordingExecutor(),
-      'decisionProvider': new DefaultDecisionProvider(),
-      clock,
-      'idGenerator': new SequentialIdGenerator(),
-    });
-    const started = await host.startRun({
-      definition,
-      'input': {'company': 'Acme'},
-    });
-    await host.pauseRun({
-      definition,
-      'runId': started.state.run_id,
-      'reason': 'inspect',
-    });
+    const {host} = buildHost({clock});
+    registerDefaultExecutor(host);
+
+    const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
+    await host.pauseRun({definition, 'runId': started.state.run_id, 'reason': 'inspect'});
 
     clock.setNow('2026-04-20T12:00:02.000Z');
-    const result = await host.runUntilComplete({
-      definition,
-      'runId': started.state.run_id,
-    });
+    const result = await host.runUntilComplete({definition, 'runId': started.state.run_id});
 
     expect(result.state.status).toBe('failed');
     expect(result.state.terminal?.reason).toBe('max_run_secs_exceeded');
+  });
+
+  describe('getRunState', () => {
+    test('returns the run state snapshot from the store', async () => {
+      const {host} = buildHost();
+      registerDefaultExecutor(host);
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      const state = await host.getRunState({'runId': started.state.run_id});
+
+      expect(state.run_id).toBe('run_001');
+      expect(state.phase).toBe('ready');
+    });
+
+    test('throws run_not_found for missing runs', async () => {
+      const {host} = buildHost();
+
+      let error: unknown;
+      try {
+        await host.getRunState({'runId': 'no_such_run'});
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toBeInstanceOf(RuntimeError);
+      expect((error as RuntimeError).code).toBe('run_not_found');
+    });
+  });
+
+  describe('getCurrentStep', () => {
+    test('returns the current step view for a ready run', async () => {
+      const {host} = buildHost();
+      registerDefaultExecutor(host);
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      const view = await host.getCurrentStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      expect(view).not.toBeNull();
+      expect(view!.step_id).toBe('step_a');
+      expect(view!.attempt).toBe(1);
+      expect(view!.step.id).toBe('step_a');
+      expect(view!.step_state.status).toBe('active');
+    });
+
+    test('returns null for terminated runs', async () => {
+      const {host} = buildHost();
+      registerDefaultExecutor(host);
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      await host.terminateRun({
+        'definition': buildDefinition(),
+        'runId': started.state.run_id,
+        'runStatus': 'cancelled',
+        'reason': 'test',
+      });
+
+      const view = await host.getCurrentStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+      expect(view).toBeNull();
+    });
+
+    test('throws for mismatched definitions', async () => {
+      const {host} = buildHost();
+      registerDefaultExecutor(host);
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      const wrongDefinition = {...buildDefinition(), 'sop_id': 'other'};
+
+      let error: unknown;
+      try {
+        await host.getCurrentStep({'definition': wrongDefinition, 'runId': started.state.run_id});
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toBeInstanceOf(RuntimeError);
+      expect((error as RuntimeError).code).toBe('invalid_runtime_state');
+    });
+  });
+
+  describe('decideOutcome', () => {
+    test('builds and applies a decision from the current accepted result', async () => {
+      const {host} = buildHost();
+      registerDefaultExecutor(host);
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+
+      // Execute the step first to get an accepted result
+      await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      // Now decide the outcome
+      const nextState = await host.decideOutcome({
+        'definition': buildDefinition(),
+        'runId': started.state.run_id,
+        'outcomeId': 'done',
+        'reason': 'test decision',
+      });
+
+      expect(nextState.status).toBe('succeeded');
+      expect(nextState.phase).toBe('terminated');
+    });
+
+    test('emits decision_applied and run_terminated events', async () => {
+      const eventSink = new RecordingEventSink();
+      const {host} = buildHost({eventSink});
+      registerDefaultExecutor(host);
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      await host.decideOutcome({
+        'definition': buildDefinition(),
+        'runId': started.state.run_id,
+        'outcomeId': 'done',
+      });
+
+      const kinds = eventSink.events.map((e) => e.kind);
+      expect(kinds).toContain('decision_applied');
+      expect(kinds).toContain('run_terminated');
+    });
+
+    test('respects max_run_secs before applying the decision', async () => {
+      const clock = new FixedClock('2026-04-20T12:00:00.000Z');
+      const definition = buildDefinition({'max_run_secs': 1});
+      const host = new RuntimeHost({
+        'store': new InMemoryStateStore(),
+        'decisionProvider': new DefaultDecisionProvider(),
+        clock,
+        'idGenerator': new SequentialIdGenerator(),
+      });
+      registerDefaultExecutor(host);
+
+      const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
+      await host.runReadyStep({definition, 'runId': started.state.run_id});
+
+      clock.setNow('2026-04-20T12:00:02.000Z');
+      const expired = await host.decideOutcome({
+        definition,
+        'runId': started.state.run_id,
+        'outcomeId': 'done',
+      });
+
+      expect(expired.status).toBe('failed');
+      expect(expired.terminal?.reason).toBe('max_run_secs_exceeded');
+    });
+  });
+
+  describe('applyDecision compatibility', () => {
+    test('applyDecision still works as a compat entry point', async () => {
+      const {host} = buildHost();
+      registerDefaultExecutor(host);
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      const nextState = await host.applyDecision({
+        'definition': buildDefinition(),
+        'runId': started.state.run_id,
+        'decision': {
+          'run_id': started.state.run_id,
+          'step_id': 'step_a',
+          'attempt': 1,
+          'outcome_id': 'done',
+          'reason': 'compat test',
+        },
+      });
+
+      expect(nextState.status).toBe('succeeded');
+    });
+  });
+
+  describe('hook pipeline', () => {
+    test('beforeStep can rewrite inputs and executor receives them', async () => {
+      const store = new InMemoryStateStore();
+      const host = new RuntimeHost({
+        store,
+        'decisionProvider': new DefaultDecisionProvider(),
+        'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+        'idGenerator': new SequentialIdGenerator(),
+        'hooks': {
+          'beforeStep': [(input) => {
+            return {
+              'inputs': {...input.packet.inputs as JsonObject, 'company': 'Rewritten'},
+            };
+          }],
+        },
+      });
+      let receivedInputs: JsonObject = {};
+      host.registerExecutor('tool', 'default_tool', (input) => {
+        receivedInputs = input.packet.inputs;
+        return {
+          'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+          'attempt': input.packet.attempt, 'status': 'success',
+          'output': {'summary': 'ok'},
+        };
+      });
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      expect(receivedInputs.company).toBe('Rewritten');
+    });
+
+    test('beforeStep can rewrite executor config and handler receives it', async () => {
+      const store = new InMemoryStateStore();
+      const host = new RuntimeHost({
+        store,
+        'decisionProvider': new DefaultDecisionProvider(),
+        'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+        'idGenerator': new SequentialIdGenerator(),
+        'hooks': {
+          'beforeStep': [(input) => {
+            return {
+              'config': {...(input.packet.executor.config as JsonObject ?? {}), 'command_template': 'rewritten_cmd'},
+            };
+          }],
+        },
+      });
+      let receivedConfig: JsonObject = {};
+      host.registerExecutor('tool', 'default_tool', (input) => {
+        receivedConfig = input.config;
+        return {
+          'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+          'attempt': input.packet.attempt, 'status': 'success',
+          'output': {'summary': 'ok'},
+        };
+      });
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      expect(receivedConfig.command_template).toBe('rewritten_cmd');
+    });
+
+    test('beforeStep pause skips executor, saves paused state, emits run_paused', async () => {
+      const eventSink = new RecordingEventSink();
+      const store = new InMemoryStateStore();
+      const host = new RuntimeHost({
+        store,
+        'decisionProvider': new DefaultDecisionProvider(),
+        'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+        'idGenerator': new SequentialIdGenerator(),
+        eventSink,
+        'hooks': {
+          'beforeStep': [() => {
+            return {'control': {'action': 'pause', 'reason': 'review required'}};
+          }],
+        },
+      });
+      let executorCalled = false;
+      host.registerExecutor('tool', 'default_tool', () => {
+        executorCalled = true;
+        return {'run_id': '', 'step_id': '', 'attempt': 0, 'status': 'success', 'output': {}};
+      });
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      const state = await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      expect(executorCalled).toBe(false);
+      expect(state.phase).toBe('paused');
+      expect(state.pause?.reason).toBe('review required');
+      expect(eventSink.events.map((e) => e.kind)).toContain('run_paused');
+    });
+
+    test('beforeStep terminate skips executor, saves terminated state, emits run_terminated', async () => {
+      const eventSink = new RecordingEventSink();
+      const store = new InMemoryStateStore();
+      const host = new RuntimeHost({
+        store,
+        'decisionProvider': new DefaultDecisionProvider(),
+        'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+        'idGenerator': new SequentialIdGenerator(),
+        eventSink,
+        'hooks': {
+          'beforeStep': [() => {
+            return {'control': {'action': 'terminate', 'runStatus': 'cancelled', 'reason': 'no longer needed'}};
+          }],
+        },
+      });
+      let executorCalled = false;
+      host.registerExecutor('tool', 'default_tool', () => {
+        executorCalled = true;
+        return {'run_id': '', 'step_id': '', 'attempt': 0, 'status': 'success', 'output': {}};
+      });
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      const state = await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      expect(executorCalled).toBe(false);
+      expect(state.phase).toBe('terminated');
+      expect(state.status).toBe('cancelled');
+      expect(state.terminal?.reason).toBe('no longer needed');
+      expect(eventSink.events.map((e) => e.kind)).toContain('run_terminated');
+    });
+
+    test('afterStep can rewrite executor output and core accepts it', async () => {
+      const store = new InMemoryStateStore();
+      const host = new RuntimeHost({
+        store,
+        'decisionProvider': new DefaultDecisionProvider(),
+        'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+        'idGenerator': new SequentialIdGenerator(),
+        'hooks': {
+          'afterStep': [() => {
+            return {'result': {'output': {'summary': 'rewritten by hook'}}};
+          }],
+        },
+      });
+      host.registerExecutor('tool', 'default_tool', (input) => ({
+        'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt, 'status': 'success',
+        'output': {'summary': 'original'},
+      }));
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      const state = await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      expect(state.accepted_results.step_a?.output).toEqual({'summary': 'rewritten by hook'});
+    });
+
+    test('afterStep can rewrite result status to tool_error', async () => {
+      const store = new InMemoryStateStore();
+      const host = new RuntimeHost({
+        store,
+        'decisionProvider': new DefaultDecisionProvider(),
+        'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+        'idGenerator': new SequentialIdGenerator(),
+        'hooks': {
+          'afterStep': [() => {
+            return {'result': {'status': 'tool_error', 'output': {'summary': 'error output'}}};
+          }],
+        },
+      });
+      host.registerExecutor('tool', 'default_tool', (input) => ({
+        'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt, 'status': 'success',
+        'output': {'summary': 'original'},
+      }));
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      const state = await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      expect(state.phase).toBe('awaiting_decision');
+      const accepted = state.accepted_results.step_a;
+      expect(accepted?.status).toBe('tool_error');
+    });
+
+    test('afterStep control does not take effect when core rejects the result', async () => {
+      // Return invalid output that doesn't match output_schema
+      const store = new InMemoryStateStore();
+      const host = new RuntimeHost({
+        store,
+        'decisionProvider': new DefaultDecisionProvider(),
+        'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+        'idGenerator': new SequentialIdGenerator(),
+        'hooks': {
+          'afterStep': [() => {
+            return {
+              'result': {'output': {'no_summary_here': true}},
+              'control': {'action': 'pause', 'reason': 'should not happen'},
+            };
+          }],
+        },
+      });
+      host.registerExecutor('tool', 'default_tool', (input) => ({
+        'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt, 'status': 'success',
+        'output': {'summary': 'original'},
+      }));
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+
+      // applyStepResult silently accepts invalid output with status 'invalid_output'.
+      // The afterStep hook control should NOT take effect since the result was not accepted as 'success'.
+      const state = await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      // Run should NOT be paused — hook control is ignored when the result status isn't 'success'
+      expect(state.phase).toBe('awaiting_decision');
+      const accepted = state.accepted_results.step_a;
+      expect(accepted?.status).toBe('invalid_output');
+    });
+
+    test('invalid hook control throws hook_rejected', async () => {
+      const store = new InMemoryStateStore();
+      const host = new RuntimeHost({
+        store,
+        'decisionProvider': new DefaultDecisionProvider(),
+        'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+        'idGenerator': new SequentialIdGenerator(),
+        'hooks': {
+          'beforeStep': [(() => {
+            return {control: {action: 'unknown_action'}};
+          }) as unknown as BeforeStepHook],
+        },
+      });
+      host.registerExecutor('tool', 'default_tool', (input) => ({
+        'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt, 'status': 'success',
+        'output': {'summary': 'ok'},
+      }));
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+
+      let hookError: unknown;
+      try {
+        await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+      } catch (caught) {
+        hookError = caught;
+      }
+
+      expect(hookError).toBeInstanceOf(RuntimeError);
+      expect((hookError as RuntimeError).code).toBe('hook_rejected');
+    });
+
+    test('hook that throws produces hook_rejected with stage and index details', async () => {
+      const store = new InMemoryStateStore();
+      const host = new RuntimeHost({
+        store,
+        'decisionProvider': new DefaultDecisionProvider(),
+        'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+        'idGenerator': new SequentialIdGenerator(),
+        'hooks': {
+          'afterStep': [() => {
+            throw new Error('hook panic');
+          }],
+        },
+      });
+      host.registerExecutor('tool', 'default_tool', (input) => ({
+        'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt, 'status': 'success',
+        'output': {'summary': 'ok'},
+      }));
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+
+      let hookError: unknown;
+      try {
+        await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+      } catch (caught) {
+        hookError = caught;
+      }
+
+      expect(hookError).toBeInstanceOf(RuntimeError);
+      expect((hookError as RuntimeError).code).toBe('hook_rejected');
+      expect((hookError as RuntimeError).details).toMatchObject({
+        'stage': 'afterStep',
+        'index': 0,
+        'error': 'hook panic',
+      });
+    });
+
+    test('afterStep pause pauses the run from awaiting_decision', async () => {
+      const store = new InMemoryStateStore();
+      const host = new RuntimeHost({
+        store,
+        'decisionProvider': new DefaultDecisionProvider(),
+        'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+        'idGenerator': new SequentialIdGenerator(),
+        'hooks': {
+          'afterStep': [() => {
+            return {'control': {'action': 'pause', 'reason': 'manual review after step'}};
+          }],
+        },
+      });
+      host.registerExecutor('tool', 'default_tool', (input) => ({
+        'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt, 'status': 'success',
+        'output': {'summary': 'ok'},
+      }));
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      const state = await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      expect(state.phase).toBe('paused');
+      expect(state.pause?.reason).toBe('manual review after step');
+      expect(state.pause?.previous_phase).toBe('awaiting_decision');
+    });
+
+    test('afterStep terminate terminates from awaiting_decision', async () => {
+      const store = new InMemoryStateStore();
+      const host = new RuntimeHost({
+        store,
+        'decisionProvider': new DefaultDecisionProvider(),
+        'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+        'idGenerator': new SequentialIdGenerator(),
+        'hooks': {
+          'afterStep': [() => {
+            return {'control': {'action': 'terminate', 'runStatus': 'failed', 'reason': 'step output invalid'}};
+          }],
+        },
+      });
+      host.registerExecutor('tool', 'default_tool', (input) => ({
+        'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt, 'status': 'success',
+        'output': {'summary': 'ok'},
+      }));
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      const state = await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+
+      expect(state.phase).toBe('terminated');
+      expect(state.status).toBe('failed');
+      expect(state.terminal?.reason).toBe('step output invalid');
+    });
   });
 });

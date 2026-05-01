@@ -38,8 +38,8 @@ definition -> validator -> core -> runtime
 
 1. 编写 SOP definition，例如 [`examples/basic_sop_definition.json`](./examples/basic_sop_definition.json)，结构可参考 [`schemas/sop-definition.schema.json`](./schemas/sop-definition.schema.json)。
 2. 调用 `validateDefinition(definition)`，只接收 `ok === true` 的定义。
-3. 实现一个 `StepExecutor`，把 step packet 适配到本地命令、沙箱、工具或 agent。
-4. 创建 `RuntimeHost`，传入 store、executor 和可选 decision provider。
+3. 通过 `host.registerExecutor(kind, name, handler)` 注册执行器处理函数，把 step packet 适配到本地命令、沙箱、工具或 agent。
+4. 创建 `RuntimeHost`，传入 store 和可选 decision provider。
 5. 调用 `startRun` 创建或复用 run，再调用 `runUntilComplete` 驱动到终止。
 
 ```ts
@@ -60,22 +60,21 @@ if (!validation.ok) {
 
 const host = new RuntimeHost({
   'store': new InMemoryStateStore(),
-  'executor': {
-    async execute(packet) {
-      return {
-        'run_id': packet.run_id,
-        'step_id': packet.step_id,
-        'attempt': packet.attempt,
-        'status': 'success',
-        'output': {
-          'summary': 'Collected context.',
-          'next_action': 'Review and approve.',
-        },
-        'artifacts': {},
-      };
-    },
-  },
   'decisionProvider': new DefaultDecisionProvider(),
+});
+
+host.registerExecutor('tool', 'collect_context', async (input) => {
+  return {
+    'run_id': input.packet.run_id,
+    'step_id': input.packet.step_id,
+    'attempt': input.packet.attempt,
+    'status': 'success',
+    'output': {
+      'summary': 'Collected context.',
+      'next_action': 'Review and approve.',
+    },
+    'artifacts': {},
+  };
 });
 
 const started = await host.startRun({

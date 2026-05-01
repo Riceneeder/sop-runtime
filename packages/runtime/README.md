@@ -47,7 +47,6 @@ import {
   DefaultDecisionProvider,
   InMemoryStateStore,
   RuntimeHost,
-  StepExecutor,
 } from '@sop-runtime/runtime';
 ```
 
@@ -58,26 +57,22 @@ import {
   DefaultDecisionProvider,
   InMemoryStateStore,
   RuntimeHost,
-  StepExecutor,
 } from '@sop-runtime/runtime';
-
-const executor: StepExecutor = {
-  async execute(packet) {
-    return {
-      'run_id': packet.run_id,
-      'step_id': packet.step_id,
-      'attempt': packet.attempt,
-      'status': 'success',
-      'output': {'summary': 'done'},
-      'artifacts': {},
-    };
-  },
-};
 
 const host = new RuntimeHost({
   'store': new InMemoryStateStore(),
-  executor,
   'decisionProvider': new DefaultDecisionProvider(),
+});
+
+host.registerExecutor('tool', 'summarize', async (input) => {
+  return {
+    'run_id': input.packet.run_id,
+    'step_id': input.packet.step_id,
+    'attempt': input.packet.attempt,
+    'status': 'success',
+    'output': {'summary': 'done'},
+    'artifacts': {},
+  };
 });
 
 const started = await host.startRun({
@@ -95,22 +90,28 @@ console.log(completed.final_output);
 ```
 
 
-## ToolRegistryExecutor
+## Executor registry
 
-`ToolRegistryExecutor` 是 runtime 内置的轻量参考执行器，通过 `kind + name` 匹配注册的 handler。
+RuntimeHost 通过 `registerExecutor(kind, name, handler)` 注册执行器，`runReadyStep` 按 `packet.executor.kind + packet.executor.name` 查找并分发。未注册的 executor 会抛出 `RuntimeError('executor_not_registered')`。
 
-- 通过构造函数注册工具处理器（tool handlers），由宿主应用提供具体工具能力。
-- 当前仅对 `kind === 'sandbox_tool'` 的步骤提供向后兼容支持，其他 kind 返回 `unsupported_executor_kind`。
-- 这是 legacy/reference 实现，适用于本地嵌入、测试、demo。未来 SDK 方向是通过 `RuntimeHost.registerExecutor(kind, name, handler)` 实现通用的 executor registry，不再硬编码 kind 检查。
+handler 接收 `{packet, definition, state, config}`，必须返回 `StepResult`，状态推进只允许通过 core `applyStepResult`。不允许 handler 绕过状态机直接修改持久化状态。
+
+### ToolRegistryExecutor（legacy）
+
+`ToolRegistryExecutor` 是遗留参考实现，实现 `StepExecutor` 接口用于向后兼容。它仅处理 `kind === 'sandbox_tool'` 的步骤。新代码应使用 `RuntimeHost.registerExecutor` 而非 `ToolRegistryExecutor`。
 
 ## RuntimeHost 生命周期
 
-`RuntimeHost` 暴露三个主要方法：
+`RuntimeHost` 暴露以下主要方法：
 
 - `startRun(params)`：根据 definition 和 input 创建或复用 run。
-- `runReadyStep(params)`：当 run 处于 `ready` 阶段时，构建 `StepPacket` 并调用 `StepExecutor`。
+- `runReadyStep(params)`：当 run 处于 `ready` 阶段时，构建 `StepPacket` 并按 `kind + name` 分发到已注册的 executor handler。
 - `applyDecision(params)`：当 run 处于 `awaiting_decision` 阶段时，应用外部传入或 `DecisionProvider` 生成的 `Decision`。
-- `runUntilComplete(params)`：循环调用上面两个动作，直到 run 进入 `terminated`。
+- `decideOutcome(params)`：从当前 accepted result 构造 `Decision` 并调用 core `applyDecision`。推荐 Agent 监管场景使用此方法。
+- `getRunState(params)`：从 store 读取并返回 run 快照。
+- `getCurrentStep(params)`：返回当前步骤视图，终止 run 返回 `null`。
+- `pauseRun / resumeRun / terminateRun`：运行时控制面，允许暂停、恢复和手动终止 run。
+- `runUntilComplete(params)`：循环调用上面动作，直到 run 进入 `terminated`。
 
 主流程如下：
 
@@ -123,11 +124,11 @@ startRun
 
 runReadyStep
   -> buildStepPacket(core)
-  -> StepExecutor.execute
+  -> dispatch to registered executor handler (kind + name)
   -> applyStepResult(core)
   -> awaiting_decision
 
-applyDecision
+applyDecision / decideOutcome
   -> DecisionProvider.decide or caller decision
   -> applyDecision(core)
   -> ready or terminated

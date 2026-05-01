@@ -475,21 +475,19 @@ describe('ToolRegistryExecutor integration with RuntimeHost', () => {
       },
     };
 
-    const executor = new ToolRegistryExecutor({
-      'handlers': {
-        async summarize(input) {
-          return {
-            'output': {'summary': `summary for ${String(input.inputs.company)}`},
-            'artifacts': {'report_md': '/tmp/report.md'},
-          };
-        },
-      },
-    });
-
     const host = new RuntimeHost({
       'store': new InMemoryStateStore(),
-      'executor': executor,
       'decisionProvider': new DefaultDecisionProvider(),
+    });
+    host.registerExecutor('sandbox_tool', 'summarize', async (input) => {
+      return {
+        'run_id': input.packet.run_id,
+        'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt,
+        'status': 'success',
+        'output': {'summary': `summary for ${String(input.packet.inputs.company)}`},
+        'artifacts': {'report_md': '/tmp/report.md'},
+      };
     });
 
     const started = await host.startRun({

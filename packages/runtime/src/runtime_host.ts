@@ -12,6 +12,8 @@ import {
   buildStepPacket,
   createRun,
   evaluateExpressionTemplate,
+  getCurrentStep,
+  CurrentStepView,
   pauseRun,
   renderFinalOutput,
   resumeRun,
@@ -24,30 +26,118 @@ import {IdGenerator, RandomIdGenerator} from './id_generator.js';
 import {NoopRuntimeLogger, RuntimeLogger} from './logger.js';
 import {RuntimeError} from './runtime_error.js';
 import {RunRecord, RunStartClaimReason, StateStore} from './state_store.js';
-import {StepExecutor} from './step_executor.js';
+import {StepResult} from '@sop-runtime/definition';
 
 export type StartRunReason = RunStartClaimReason;
 
-/** Starts or reuses a run for one validated SOP definition and input payload. 基于一份已校验的 SOP 定义与输入，启动或复用一次运行。 */
+/** Handler signature for a registered executor. Input contains the rendered packet plus the resolved config. */
+export interface ExecutorHandlerInput {
+  packet: {
+    run_id: string;
+    step_id: string;
+    attempt: number;
+    inputs: JsonObject;
+    executor: {
+      kind: string;
+      name: string;
+      config?: JsonObject;
+      timeout_secs: number;
+      allow_network: boolean;
+      env: Record<string, string>;
+      resource_limits: {
+        max_output_bytes: number;
+        max_artifacts: number;
+      };
+    };
+  };
+  definition: SopDefinition;
+  state: RunState;
+  config: JsonObject;
+}
+
+/** A registered executor handler must return a StepResult. State transitions are only allowed through core applyStepResult. */
+export type ExecutorHandler = (input: ExecutorHandlerInput) => Promise<StepResult> | StepResult;
+
+/** Hook control signalling that the hook wants to pause or terminate the run. */
+export type HookControl =
+  | { action: 'pause'; reason: string }
+  | { action: 'terminate'; runStatus: 'failed' | 'cancelled'; reason: string };
+
+/** BeforeStep hooks receive the built packet and may rewrite inputs or config, or request a control action. */
+export interface BeforeStepHookInput {
+  packet: {
+    run_id: string;
+    step_id: string;
+    attempt: number;
+    inputs: JsonObject;
+    executor: {
+      kind: string;
+      name: string;
+      config?: JsonObject;
+      timeout_secs: number;
+      allow_network: boolean;
+      env: Record<string, string>;
+      resource_limits: {
+        max_output_bytes: number;
+        max_artifacts: number;
+      };
+    };
+  };
+  definition: SopDefinition;
+  state: RunState;
+}
+
+export type BeforeStepHook = (
+  input: BeforeStepHookInput,
+) => void | { inputs?: JsonObject; config?: JsonObject; control?: HookControl };
+
+/** AfterStep hooks receive the executor result and may rewrite result fields, or request a control action. */
+export interface AfterStepHookInput {
+  packet: {
+    run_id: string;
+    step_id: string;
+    attempt: number;
+    inputs: JsonObject;
+    executor: {
+      kind: string;
+      name: string;
+      config?: JsonObject;
+      timeout_secs: number;
+      allow_network: boolean;
+      env: Record<string, string>;
+      resource_limits: {
+        max_output_bytes: number;
+        max_artifacts: number;
+      };
+    };
+  };
+  result: StepResult;
+  definition: SopDefinition;
+  state: RunState;
+}
+
+export type AfterStepHook = (
+  input: AfterStepHookInput,
+) => void | { result?: Partial<Pick<StepResult, 'status' | 'output' | 'artifacts' | 'error' | 'metrics'>>; control?: HookControl };
+
+/** Starts or reuses a run for one validated SOP definition and input payload. */
 export interface StartRunParams {
   definition: SopDefinition;
   input: JsonObject;
-  /** Optional caller-provided run id. Store implementations must reject collisions. 调用方可选提供 run id；Store 实现必须拒绝冲突。 */
   runId?: string;
 }
 
-/** State, record, and policy reason returned by startRun. startRun 返回的状态、记录与策略原因。 */
+/** State, record, and policy reason returned by startRun. */
 export interface StartRunResult {
   state: RunState;
   reason: StartRunReason;
   record: RunRecord;
 }
 
-/** Drives a persisted run until termination or until the guard limit is reached. 驱动已持久化运行直至终止，或达到保护步数上限。 */
+/** Drives a persisted run until termination or until the guard limit is reached. */
 export interface RunUntilCompleteParams {
   definition: SopDefinition;
   runId: string;
-  /** Protects callers from malformed graphs or custom providers that never terminate. 防止异常流程图或自定义提供器导致无限执行。 */
   maxRuntimeSteps?: number;
 }
 
@@ -56,46 +146,53 @@ export interface RunUntilCompleteResult {
   final_output?: FinalOutput;
 }
 
-/** Ports required by RuntimeHost plus optional defaults for local embedding. RuntimeHost 所需端口，以及用于本地嵌入的可选默认实现。 */
+/** Ports required by RuntimeHost plus optional defaults for local embedding. */
 export interface RuntimeHostOptions {
   store: StateStore;
-  executor: StepExecutor;
   decisionProvider?: DecisionProvider;
   clock?: Clock;
   idGenerator?: IdGenerator;
   logger?: RuntimeLogger;
   eventSink?: EventSink;
+  hooks?: {
+    beforeStep?: BeforeStepHook[];
+    afterStep?: AfterStepHook[];
+  };
 }
 
 /**
  * Embeddable orchestrator that connects the pure core engine to runtime ports.
- * 可嵌入的编排器，用于把纯 core 引擎连接到 runtime 端口。
  *
  * RuntimeHost owns orchestration policy checks such as idempotency, concurrency,
  * cooldown, max_run_secs, event emission, and final-output rendering. It does not
  * implement distributed step leases; callers should avoid driving the same run
  * concurrently unless their StateStore/adapter adds that coordination.
- * RuntimeHost 负责幂等、并发、冷却、max_run_secs、事件发射与最终输出渲染等编排策略校验；
- * 它不实现分布式步骤租约机制，除非 StateStore/适配器额外提供协调能力，
- * 否则调用方应避免并发驱动同一个 run。
  */
 export class RuntimeHost {
   private readonly store: StateStore;
-  private readonly executor: StepExecutor;
   private readonly decisionProvider: DecisionProvider;
   private readonly clock: Clock;
   private readonly idGenerator: IdGenerator;
   private readonly logger: RuntimeLogger;
   private readonly eventSink: EventSink;
+  private readonly executors = new Map<string, ExecutorHandler>();
+  private readonly beforeStepHooks: BeforeStepHook[];
+  private readonly afterStepHooks: AfterStepHook[];
 
   constructor(options: RuntimeHostOptions) {
     this.store = options.store;
-    this.executor = options.executor;
     this.decisionProvider = options.decisionProvider ?? new DefaultDecisionProvider();
     this.clock = options.clock ?? new SystemClock();
     this.idGenerator = options.idGenerator ?? new RandomIdGenerator();
     this.logger = options.logger ?? new NoopRuntimeLogger();
     this.eventSink = options.eventSink ?? new NoopEventSink();
+    this.beforeStepHooks = options.hooks?.beforeStep ?? [];
+    this.afterStepHooks = options.hooks?.afterStep ?? [];
+  }
+
+  /** Registers an executor handler for a given kind + name pair. */
+  registerExecutor(kind: string, name: string, handler: ExecutorHandler): void {
+    this.executors.set(`${kind}:${name}`, handler);
   }
 
   async startRun(params: StartRunParams): Promise<StartRunResult> {
@@ -169,25 +266,226 @@ export class RuntimeHost {
       'attempt': packet.attempt,
     });
 
-    const result = await this.executor.execute(packet);
-    // External execution can cross the run deadline; do not persist stale results. 外部执行可能越过运行截止时间，不应持久化过期结果。
+    // --- beforeStep hooks ---
+    let beforeControl: HookControl | null = null;
+    let currentInputs = structuredClone(packet.inputs) as JsonObject;
+    let currentConfig = structuredClone(packet.executor.config) as JsonObject | undefined;
+
+    for (let i = 0; i < this.beforeStepHooks.length; i += 1) {
+      const hook = this.beforeStepHooks[i]!;
+      let hookResult;
+      try {
+        hookResult = hook({
+          packet: {
+            'run_id': packet.run_id,
+            'step_id': packet.step_id,
+            'attempt': packet.attempt,
+            'inputs': structuredClone(currentInputs) as JsonObject,
+            'executor': {
+              ...packet.executor,
+              'config': currentConfig !== undefined ? structuredClone(currentConfig) as JsonObject : undefined,
+            },
+          },
+          'definition': params.definition,
+          state: structuredClone(state) as RunState,
+        });
+      } catch (err: unknown) {
+        throw new RuntimeError('hook_rejected', {
+          'message': 'beforeStep hook threw an error.',
+          'details': {
+            'stage': 'beforeStep',
+            'index': i,
+            'error': err instanceof Error ? err.message : String(err),
+          },
+        });
+      }
+
+      if (hookResult === undefined || hookResult === null) {
+        continue;
+      }
+
+      hookResult = hookResult as Record<string, unknown>;
+
+      if (hookResult.control !== undefined) {
+        validateHookControl(hookResult.control);
+        beforeControl = hookResult.control as HookControl;
+      }
+      if (hookResult.inputs !== undefined) {
+        if (typeof hookResult.inputs !== 'object' || hookResult.inputs === null || Array.isArray(hookResult.inputs)) {
+          throw new RuntimeError('hook_rejected', {
+            'message': 'beforeStep hook returned invalid inputs.',
+            'details': {'stage': 'beforeStep', 'index': i},
+          });
+        }
+        currentInputs = hookResult.inputs as JsonObject;
+      }
+      if (hookResult.config !== undefined) {
+        if (typeof hookResult.config !== 'object' || hookResult.config === null || Array.isArray(hookResult.config)) {
+          throw new RuntimeError('hook_rejected', {
+            'message': 'beforeStep hook returned invalid config.',
+            'details': {'stage': 'beforeStep', 'index': i},
+          });
+        }
+        currentConfig = hookResult.config as JsonObject;
+      }
+    }
+
+    // Apply beforeStep mutations to the packet for executor dispatch
+    packet.inputs = currentInputs;
+    if (currentConfig !== undefined) {
+      (packet.executor as { config?: JsonObject }).config = currentConfig;
+    }
+
+    // beforeStep control: pause or terminate skips executor
+    if (beforeControl !== null) {
+      return this.handleBeforeStepControl(beforeControl, params.definition, state);
+    }
+
+    const result = await this.dispatchExecutor(packet, params.definition, state);
+    // External execution can cross the run deadline; do not persist stale results.
     state = await this.enforceMaxRunSecs(params.definition, state);
     if (state.phase === 'terminated') {
       return state;
     }
 
+    // --- afterStep hooks ---
+    let afterControl: HookControl | null = null;
+    let currentResult: StepResult = structuredClone(result) as StepResult;
+
+    for (let i = 0; i < this.afterStepHooks.length; i += 1) {
+      const hook = this.afterStepHooks[i]!;
+      let hookResult;
+      try {
+        hookResult = hook({
+          packet: {
+            'run_id': packet.run_id,
+            'step_id': packet.step_id,
+            'attempt': packet.attempt,
+            'inputs': structuredClone(packet.inputs) as JsonObject,
+            'executor': packet.executor,
+          },
+          'result': structuredClone(currentResult) as StepResult,
+          'definition': params.definition,
+          state: structuredClone(state) as RunState,
+        });
+      } catch (err: unknown) {
+        throw new RuntimeError('hook_rejected', {
+          'message': 'afterStep hook threw an error.',
+          'details': {
+            'stage': 'afterStep',
+            'index': i,
+            'error': err instanceof Error ? err.message : String(err),
+          },
+        });
+      }
+
+      if (hookResult === undefined || hookResult === null) {
+        continue;
+      }
+
+      hookResult = hookResult as Record<string, unknown>;
+
+      if (hookResult.control !== undefined) {
+        validateHookControl(hookResult.control);
+        afterControl = hookResult.control as HookControl;
+      }
+      if (hookResult.result !== undefined) {
+        if (typeof hookResult.result !== 'object' || hookResult.result === null || Array.isArray(hookResult.result)) {
+          throw new RuntimeError('hook_rejected', {
+            'message': 'afterStep hook returned invalid result.',
+            'details': {'stage': 'afterStep', 'index': i},
+          });
+        }
+        currentResult = {...currentResult, ...(hookResult.result as Partial<StepResult>)};
+      }
+    }
+
+    // applyStepResult must succeed before any afterStep control takes effect.
+    // If core rejects the result, afterStep control does not take effect.
     const nextState = applyStepResult({
       'definition': params.definition,
       state,
-      'stepResult': result,
+      'stepResult': currentResult,
       'now': this.clock.now(),
     });
     await this.saveState(nextState);
     await this.emit('step_result_accepted', nextState.run_id, this.clock.now(), {
-      'step_id': result.step_id,
-      'attempt': result.attempt,
-      'status': result.status,
+      'step_id': currentResult.step_id,
+      'attempt': currentResult.attempt,
+      'status': currentResult.status,
     });
+
+    // Apply afterStep control only if the result was accepted successfully.
+    // If core returned invalid_output or another non-success status, discard the control.
+    const acceptedResult = nextState.accepted_results[currentResult.step_id];
+    if (afterControl !== null && acceptedResult?.status === 'success') {
+      return this.handleAfterStepControl(afterControl, params.definition, nextState);
+    }
+
+    return nextState;
+  }
+
+  /** Returns a run state snapshot from the store. */
+  async getRunState(params: { runId: string }): Promise<RunState> {
+    return this.requireRun(params.runId);
+  }
+
+  /** Returns the current step view, or null if the run is terminated. */
+  getCurrentStep(params: {
+    definition: SopDefinition;
+    runId: string;
+  }): Promise<CurrentStepView | null> {
+    return this.requireRun(params.runId).then((state) => {
+      assertDefinitionMatchesRun(params.definition, state);
+      return getCurrentStep({ 'definition': params.definition, state });
+    });
+  }
+
+  /** Builds and applies a decision from the current accepted result. */
+  async decideOutcome(params: {
+    definition: SopDefinition;
+    runId: string;
+    outcomeId: string;
+    reason?: string;
+    metadata?: JsonObject;
+  }): Promise<RunState> {
+    let state = await this.requireRun(params.runId);
+    assertDefinitionMatchesRun(params.definition, state);
+    state = await this.enforceMaxRunSecs(params.definition, state);
+    if (state.phase === 'terminated') {
+      return state;
+    }
+
+    const acceptedResult = getCurrentAcceptedResult(state);
+    const decision: Decision = {
+      'run_id': state.run_id,
+      'step_id': acceptedResult.step_id,
+      'attempt': acceptedResult.attempt,
+      'outcome_id': params.outcomeId,
+      'reason': params.reason ?? 'decided by agent',
+      'metadata': params.metadata,
+    };
+
+    state = await this.enforceMaxRunSecs(params.definition, state);
+    if (state.phase === 'terminated') {
+      return state;
+    }
+
+    const nextState = applyCoreDecision({
+      'definition': params.definition,
+      state,
+      decision,
+      'now': this.clock.now(),
+    });
+    await this.saveState(nextState);
+    await this.emit('decision_applied', nextState.run_id, this.clock.now(), {
+      'step_id': decision.step_id,
+      'attempt': decision.attempt,
+      'outcome_id': decision.outcome_id,
+    });
+    if (nextState.phase === 'terminated') {
+      await this.emitRunTerminated(nextState, this.clock.now());
+    }
 
     return nextState;
   }
@@ -210,7 +508,7 @@ export class RuntimeHost {
       state,
       'accepted_result': acceptedResult,
     });
-    // Decision providers can also cross the deadline before returning. 决策提供器返回前也可能跨过截止时间。
+    // Decision providers can also cross the deadline before returning.
     state = await this.enforceMaxRunSecs(params.definition, state);
     if (state.phase === 'terminated') {
       return state;
@@ -345,6 +643,37 @@ export class RuntimeHost {
     });
   }
 
+  private async dispatchExecutor(
+    packet: ReturnType<typeof buildStepPacket>,
+    definition: SopDefinition,
+    state: RunState,
+  ): Promise<StepResult> {
+    const key = `${packet.executor.kind}:${packet.executor.name}`;
+    const handler = this.executors.get(key);
+    if (handler === undefined) {
+      throw new RuntimeError('executor_not_registered', {
+        'message': `No executor registered for ${key}.`,
+        'details': {
+          'kind': packet.executor.kind,
+          'name': packet.executor.name,
+        },
+      });
+    }
+
+    return handler({
+      packet: {
+        'run_id': packet.run_id,
+        'step_id': packet.step_id,
+        'attempt': packet.attempt,
+        'inputs': packet.inputs,
+        'executor': packet.executor,
+      },
+      definition,
+      state,
+      'config': packet.executor.config ?? {},
+    });
+  }
+
   private async requireRun(runId: string): Promise<RunState> {
     const state = await this.store.loadRun(runId);
     if (state === null) {
@@ -423,6 +752,70 @@ export class RuntimeHost {
       'reason': state.terminal?.reason ?? 'terminated',
     });
   }
+
+  private async handleBeforeStepControl(
+    control: HookControl,
+    definition: SopDefinition,
+    state: RunState,
+  ): Promise<RunState> {
+    if (control.action === 'pause') {
+      const paused = pauseRun({
+        'definition': definition,
+        'state': state,
+        'reason': control.reason,
+        'now': this.clock.now(),
+      });
+      await this.saveState(paused);
+      await this.emit('run_paused', paused.run_id, this.clock.now(), {
+        'reason': control.reason,
+      });
+      return paused;
+    }
+
+    const terminated = terminateRun({
+      'definition': definition,
+      'state': state,
+      'runStatus': control.runStatus,
+      'reason': control.reason,
+      'now': this.clock.now(),
+    });
+    await this.saveState(terminated);
+    await this.emitRunTerminated(terminated, this.clock.now());
+    return terminated;
+  }
+
+  private async handleAfterStepControl(
+    control: HookControl,
+    definition: SopDefinition,
+    state: RunState,
+  ): Promise<RunState> {
+    // afterStep control only takes effect after applyStepResult succeeded,
+    // so the run is in awaiting_decision phase
+    if (control.action === 'pause') {
+      const paused = pauseRun({
+        'definition': definition,
+        'state': state,
+        'reason': control.reason,
+        'now': this.clock.now(),
+      });
+      await this.saveState(paused);
+      await this.emit('run_paused', paused.run_id, this.clock.now(), {
+        'reason': control.reason,
+      });
+      return paused;
+    }
+
+    const terminated = terminateRun({
+      'definition': definition,
+      'state': state,
+      'runStatus': control.runStatus,
+      'reason': control.reason,
+      'now': this.clock.now(),
+    });
+    await this.saveState(terminated);
+    await this.emitRunTerminated(terminated, this.clock.now());
+    return terminated;
+  }
 }
 
 function renderPolicyKey(params: {
@@ -481,3 +874,38 @@ function assertDefinitionMatchesRun(definition: SopDefinition, state: RunState):
   });
 }
 
+function validateHookControl(control: unknown): asserts control is HookControl {
+  if (typeof control !== 'object' || control === null) {
+    throw new RuntimeError('hook_rejected', {
+      'message': 'Hook control must be a non-null object.',
+    });
+  }
+
+  const c = control as Record<string, unknown>;
+  if (c.action === 'pause') {
+    if (typeof c.reason !== 'string') {
+      throw new RuntimeError('hook_rejected', {
+        'message': 'Hook pause control requires a string reason.',
+      });
+    }
+    return;
+  }
+
+  if (c.action === 'terminate') {
+    if (c.runStatus !== 'failed' && c.runStatus !== 'cancelled') {
+      throw new RuntimeError('hook_rejected', {
+        'message': 'Hook terminate control requires runStatus of "failed" or "cancelled".',
+      });
+    }
+    if (typeof c.reason !== 'string') {
+      throw new RuntimeError('hook_rejected', {
+        'message': 'Hook terminate control requires a string reason.',
+      });
+    }
+    return;
+  }
+
+  throw new RuntimeError('hook_rejected', {
+    'message': 'Hook control action must be "pause" or "terminate".',
+  });
+}

@@ -14,6 +14,13 @@ export {RuntimeError} from './runtime_error.js';
 export type {RuntimeErrorCode, RuntimeErrorOptions} from './runtime_error.js';
 export {RuntimeHost} from './runtime_host.js';
 export type {
+  AfterStepHook,
+  AfterStepHookInput,
+  BeforeStepHook,
+  BeforeStepHookInput,
+  ExecutorHandler,
+  ExecutorHandlerInput,
+  HookControl,
   RunUntilCompleteParams,
   RunUntilCompleteResult,
   RuntimeHostOptions,
