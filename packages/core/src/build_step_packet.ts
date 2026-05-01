@@ -56,12 +56,32 @@ export function buildStepPacket(params: {
     });
   }
 
+  let renderedExecutorConfig: JsonObject | undefined;
+  if (currentStep.step.executor.config !== undefined) {
+    const rendered = renderJsonValueTemplates({
+      'value': currentStep.step.executor.config,
+      'state': params.state,
+    });
+    if (!isJsonObject(rendered)) {
+      throw new CoreError('expression_evaluation_failed', {
+        'message': 'Executor config must resolve to a JSON object.',
+        'details': {
+          'step_id': currentStep.step_id,
+        },
+      });
+    }
+    renderedExecutorConfig = rendered;
+  }
+
   return {
     'run_id': params.state.run_id,
     'step_id': currentStep.step.id,
     'attempt': currentStep.attempt,
     'inputs': renderedInputs,
-    'executor': currentStep.step.executor,
+    'executor': {
+      ...currentStep.step.executor,
+      'config': renderedExecutorConfig,
+    },
     'output_schema': currentStep.step.output_schema,
   };
 }

@@ -72,7 +72,8 @@ function buildDefinition(): SopDefinition {
 }
 
 describe('buildStepPacket', () => {
-  test('renders nested inputs and forwards executor config unchanged', () => {
+  test('renders nested inputs and executor config expressions', () => {
+
     const definition = buildDefinition();
     const state = createRun({
       definition,
@@ -93,8 +94,8 @@ describe('buildStepPacket', () => {
     expect(packet.executor.kind).toBe('web_search');
     expect(packet.executor.name).toBe('web_search');
     expect(packet.executor.config).toEqual({
-      'command_template': 'Search ${run.input.company}',
-      'path': '${run.input.workspace}',
+      'command_template': 'Search Acme',
+      'path': '/tmp/default',
     });
   });
 

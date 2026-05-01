@@ -179,7 +179,7 @@ export interface RunState {
   /** Pause metadata present only when the run is paused. 仅在暂停时存在的暂停元数据。 */
   pause?: {
     /** Phase the run was in before being paused. 暂停前运行所处的阶段。 */
-    previous_phase: Exclude<RunPhase, 'paused'>;
+    previous_phase: 'ready' | 'awaiting_decision';
     /** Reason why the run was paused. 暂停原因。 */
     reason: string;
     /** Timestamp when the run was paused. 暂停发生的时间戳。 */

@@ -97,11 +97,11 @@ console.log(completed.final_output);
 
 ## ToolRegistryExecutor
 
-`ToolRegistryExecutor` 是 runtime 内置的轻量执行器，专门用于 `sandbox_tool` 步骤。
+`ToolRegistryExecutor` 是 runtime 内置的轻量参考执行器，通过 `kind + name` 匹配注册的 handler。
 
 - 通过构造函数注册工具处理器（tool handlers），由宿主应用提供具体工具能力。
-- 对 `sandbox_script` 与 `sandbox_model` 会返回结构化 `tool_error`，当前刻意不支持。
-- 适用于本地嵌入、测试、demo，以及由宿主应用已控制工具能力的早期生产集成。
+- 当前仅对 `kind === 'sandbox_tool'` 的步骤提供向后兼容支持，其他 kind 返回 `unsupported_executor_kind`。
+- 这是 legacy/reference 实现，适用于本地嵌入、测试、demo。未来 SDK 方向是通过 `RuntimeHost.registerExecutor(kind, name, handler)` 实现通用的 executor registry，不再硬编码 kind 检查。
 
 ## RuntimeHost 生命周期
 
