@@ -12,7 +12,10 @@ import {
   buildStepPacket,
   createRun,
   evaluateExpressionTemplate,
+  pauseRun,
   renderFinalOutput,
+  resumeRun,
+  terminateRun,
 } from '@sop-runtime/core';
 import {Clock, SystemClock} from './clock.js';
 import {DecisionProvider, DefaultDecisionProvider} from './decision_provider.js';
@@ -232,6 +235,70 @@ export class RuntimeHost {
     return nextState;
   }
 
+  async pauseRun(params: {
+    definition: SopDefinition;
+    runId: string;
+    reason: string;
+  }): Promise<RunState> {
+    const state = await this.requireRun(params.runId);
+    assertDefinitionMatchesRun(params.definition, state);
+
+    const paused = pauseRun({
+      'definition': params.definition,
+      'state': state,
+      'reason': params.reason,
+      'now': this.clock.now(),
+    });
+    await this.saveState(paused);
+    await this.emit('run_paused', paused.run_id, this.clock.now(), {
+      'reason': params.reason,
+    });
+
+    return paused;
+  }
+
+  async resumeRun(params: {
+    definition: SopDefinition;
+    runId: string;
+  }): Promise<RunState> {
+    const state = await this.requireRun(params.runId);
+    assertDefinitionMatchesRun(params.definition, state);
+
+    const resumed = resumeRun({
+      'definition': params.definition,
+      'state': state,
+      'now': this.clock.now(),
+    });
+    await this.saveState(resumed);
+    await this.emit('run_resumed', resumed.run_id, this.clock.now(), {
+      'previous_phase': state.pause?.previous_phase ?? null,
+    });
+
+    return resumed;
+  }
+
+  async terminateRun(params: {
+    definition: SopDefinition;
+    runId: string;
+    runStatus: 'cancelled' | 'failed';
+    reason: string;
+  }): Promise<RunState> {
+    const state = await this.requireRun(params.runId);
+    assertDefinitionMatchesRun(params.definition, state);
+
+    const terminated = terminateRun({
+      'definition': params.definition,
+      'state': state,
+      'runStatus': params.runStatus,
+      'reason': params.reason,
+      'now': this.clock.now(),
+    });
+    await this.saveState(terminated);
+    await this.emitRunTerminated(terminated, this.clock.now());
+
+    return terminated;
+  }
+
   async runUntilComplete(params: RunUntilCompleteParams): Promise<RunUntilCompleteResult> {
     const maxRuntimeSteps = params.maxRuntimeSteps ?? 100;
     let state = await this.requireRun(params.runId);
@@ -241,6 +308,10 @@ export class RuntimeHost {
       state = await this.enforceMaxRunSecs(params.definition, state);
       if (state.phase === 'terminated') {
         return this.buildCompletedResult(params.definition, state);
+      }
+
+      if (state.phase === 'paused') {
+        return {state};
       }
 
       if (state.phase === 'ready') {
@@ -312,9 +383,11 @@ export class RuntimeHost {
     }
 
     const terminated = terminateRun({
-      state,
-      'now': now,
+      'definition': definition,
+      'state': state,
+      'runStatus': 'failed',
       'reason': 'max_run_secs_exceeded',
+      'now': now,
     });
     await this.saveState(terminated);
     await this.emitRunTerminated(terminated, now);
@@ -408,42 +481,3 @@ function assertDefinitionMatchesRun(definition: SopDefinition, state: RunState):
   });
 }
 
-function terminateRun(params: {
-  state: RunState;
-  now: string;
-  reason: string;
-}): RunState {
-  const currentStepId = params.state.current_step_id;
-  const steps = currentStepId === null || params.state.steps[currentStepId] === undefined
-    ? params.state.steps
-    : {
-      ...params.state.steps,
-      [currentStepId]: {
-        ...params.state.steps[currentStepId],
-        'status': 'failed' as const,
-      },
-    };
-
-  return {
-    ...params.state,
-    'status': 'failed',
-    'phase': 'terminated',
-    'current_step_id': null,
-    'current_attempt': null,
-    steps,
-    'terminal': {
-      'run_status': 'failed',
-      'reason': params.reason,
-    },
-    'history': [
-      ...params.state.history,
-      {
-        'kind': 'run_terminated',
-        'run_status': 'failed',
-        'reason': params.reason,
-        'at': params.now,
-      },
-    ],
-    'updated_at': params.now,
-  };
-}

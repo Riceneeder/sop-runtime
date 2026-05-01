@@ -714,4 +714,158 @@ describe('RuntimeHost', () => {
     expect(missingRunError).toBeInstanceOf(RuntimeError);
     expect((missingRunError as RuntimeError).code).toBe('run_not_found');
   });
+
+  test('pauses a run and emits run_paused event', async () => {
+    const eventSink = new RecordingEventSink();
+    const host = new RuntimeHost({
+      'store': new InMemoryStateStore(),
+      'executor': new RecordingExecutor(),
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+      eventSink,
+    });
+    const started = await host.startRun({
+      'definition': buildDefinition(),
+      'input': {'company': 'Acme'},
+    });
+
+    const paused = await host.pauseRun({
+      'definition': buildDefinition(),
+      'runId': started.state.run_id,
+      'reason': 'manual inspection',
+    });
+
+    expect(paused.phase).toBe('paused');
+    expect(paused.pause?.reason).toBe('manual inspection');
+    expect(paused.pause?.previous_phase).toBe('ready');
+    expect(eventSink.events.map((e) => e.kind)).toContain('run_paused');
+    expect(eventSink.events.at(-1)).toMatchObject({
+      'kind': 'run_paused',
+      'run_id': 'run_001',
+      'details': {'reason': 'manual inspection'},
+    });
+  });
+
+  test('resumes a paused run and emits run_resumed event', async () => {
+    const eventSink = new RecordingEventSink();
+    const host = new RuntimeHost({
+      'store': new InMemoryStateStore(),
+      'executor': new RecordingExecutor(),
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+      eventSink,
+    });
+    const started = await host.startRun({
+      'definition': buildDefinition(),
+      'input': {'company': 'Acme'},
+    });
+    await host.pauseRun({
+      'definition': buildDefinition(),
+      'runId': started.state.run_id,
+      'reason': 'inspect',
+    });
+
+    const resumed = await host.resumeRun({
+      'definition': buildDefinition(),
+      'runId': started.state.run_id,
+    });
+
+    expect(resumed.phase).toBe('ready');
+    expect(resumed.pause).toBeUndefined();
+    expect(eventSink.events.map((e) => e.kind)).toContain('run_resumed');
+    expect(eventSink.events.at(-1)).toMatchObject({
+      'kind': 'run_resumed',
+      'run_id': 'run_001',
+    });
+  });
+
+  test('terminates a run and emits run_terminated event', async () => {
+    const eventSink = new RecordingEventSink();
+    const host = new RuntimeHost({
+      'store': new InMemoryStateStore(),
+      'executor': new RecordingExecutor(),
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+      eventSink,
+    });
+    const started = await host.startRun({
+      'definition': buildDefinition(),
+      'input': {'company': 'Acme'},
+    });
+
+    const terminated = await host.terminateRun({
+      'definition': buildDefinition(),
+      'runId': started.state.run_id,
+      'runStatus': 'cancelled',
+      'reason': 'operator cancelled',
+    });
+
+    expect(terminated.phase).toBe('terminated');
+    expect(terminated.status).toBe('cancelled');
+    expect(terminated.terminal).toEqual({
+      'run_status': 'cancelled',
+      'reason': 'operator cancelled',
+    });
+    expect(eventSink.events.map((e) => e.kind)).toContain('run_terminated');
+  });
+
+  test('runUntilComplete returns immediately when run is paused', async () => {
+    const host = new RuntimeHost({
+      'store': new InMemoryStateStore(),
+      'executor': new RecordingExecutor(),
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+    });
+    const started = await host.startRun({
+      'definition': buildDefinition(),
+      'input': {'company': 'Acme'},
+    });
+    await host.pauseRun({
+      'definition': buildDefinition(),
+      'runId': started.state.run_id,
+      'reason': 'inspect',
+    });
+
+    const result = await host.runUntilComplete({
+      'definition': buildDefinition(),
+      'runId': started.state.run_id,
+    });
+
+    expect(result.state.phase).toBe('paused');
+    expect(result.final_output).toBeUndefined();
+  });
+
+  test('enforceMaxRunSecs terminates a paused run that exceeds max_run_secs', async () => {
+    const clock = new FixedClock('2026-04-20T12:00:00.000Z');
+    const definition = buildDefinition({'max_run_secs': 1});
+    const host = new RuntimeHost({
+      'store': new InMemoryStateStore(),
+      'executor': new RecordingExecutor(),
+      'decisionProvider': new DefaultDecisionProvider(),
+      clock,
+      'idGenerator': new SequentialIdGenerator(),
+    });
+    const started = await host.startRun({
+      definition,
+      'input': {'company': 'Acme'},
+    });
+    await host.pauseRun({
+      definition,
+      'runId': started.state.run_id,
+      'reason': 'inspect',
+    });
+
+    clock.setNow('2026-04-20T12:00:02.000Z');
+    const result = await host.runUntilComplete({
+      definition,
+      'runId': started.state.run_id,
+    });
+
+    expect(result.state.status).toBe('failed');
+    expect(result.state.terminal?.reason).toBe('max_run_secs_exceeded');
+  });
 });

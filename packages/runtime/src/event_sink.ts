@@ -7,6 +7,8 @@ export type RuntimeEventKind =
   | 'step_packet_built'
   | 'step_result_accepted'
   | 'decision_applied'
+  | 'run_paused'
+  | 'run_resumed'
   | 'run_terminated';
 
 /** Audit event emitted after host-level orchestration milestones. 主机级编排里程碑之后发出的审计事件。 */
