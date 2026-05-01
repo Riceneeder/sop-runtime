@@ -7,4 +7,7 @@ export {createRun} from './create_run.js';
 export {evaluateExpressionTemplate} from './expression_evaluator.js';
 export {getCurrentStep} from './get_current_step.js';
 export type {CurrentStepView} from './get_current_step.js';
+export {pauseRun} from './pause_run.js';
 export {renderFinalOutput} from './render_final_output.js';
+export {resumeRun} from './resume_run.js';
+export {terminateRun} from './terminate_run.js';

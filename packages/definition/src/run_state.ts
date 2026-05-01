@@ -133,6 +133,22 @@ export type HistoryEntry =
     run_status: Exclude<RunStatus, 'running'>;
     /** Human-readable explanation for termination. 终止原因的可读描述。 */
     reason: string;
+  }
+  | {
+    /** Event emitted when the run is paused. 运行暂停时写入的事件。 */
+    kind: 'run_paused';
+    /** Optional timestamp for the event. 事件发生时间戳，可选。 */
+    at?: string;
+    /** Reason why the run was paused. 暂停原因。 */
+    reason: string;
+  }
+  | {
+    /** Event emitted when the run is resumed. 运行恢复时写入的事件。 */
+    kind: 'run_resumed';
+    /** Optional timestamp for the event. 事件发生时间戳，可选。 */
+    at?: string;
+    /** Phase the run was in before being paused. 恢复前所处的阶段。 */
+    previous_phase: 'ready' | 'awaiting_decision';
   };
 
 /**
