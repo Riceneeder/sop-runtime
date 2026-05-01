@@ -29,10 +29,9 @@ function buildDefinition(): SopDefinition {
       'title': 'A',
       'inputs': {'company': '${run.input.company}'},
       'executor': {
-        'kind': 'sandbox_tool',
-        'tool': 'web_search',
-        'command_template': 'Search',
-        'path': '/tmp',
+        'kind': 'web_search',
+          'name': 'web_search',
+          'config': { 'command_template': 'Search', 'path': '/tmp' },
         'timeout_secs': 120,
         'allow_network': true,
         'env': {},

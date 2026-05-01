@@ -184,7 +184,7 @@
       "additionalProperties": false,
       "required": [
         "kind",
-        "path",
+        "name",
         "timeout_secs",
         "allow_network",
         "env",
@@ -193,27 +193,14 @@
       "properties": {
         "kind": {
           "type": "string",
-          "enum": [
-            "sandbox_tool",
-            "sandbox_script",
-            "sandbox_model"
-          ]
+          "minLength": 1
         },
-        "tool": {
-          "type": "string"
-        },
-        "model": {
-          "type": "string"
-        },
-        "command_template": {
-          "type": "string"
-        },
-        "prompt_template": {
-          "type": "string"
-        },
-        "path": {
+        "name": {
           "type": "string",
           "minLength": 1
+        },
+        "config": {
+          "type": "object"
         },
         "timeout_secs": {
           "type": "integer",
@@ -231,63 +218,7 @@
         "resource_limits": {
           "$ref": "#/$defs/resource_limits"
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "kind": {
-                "const": "sandbox_tool"
-              }
-            },
-            "required": [
-              "kind"
-            ]
-          },
-          "then": {
-            "required": [
-              "tool",
-              "command_template"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "kind": {
-                "const": "sandbox_script"
-              }
-            },
-            "required": [
-              "kind"
-            ]
-          },
-          "then": {
-            "required": [
-              "tool",
-              "command_template"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "kind": {
-                "const": "sandbox_model"
-              }
-            },
-            "required": [
-              "kind"
-            ]
-          },
-          "then": {
-            "required": [
-              "model",
-              "prompt_template"
-            ]
-          }
-        }
-      ]
+      }
     },
     "resource_limits": {
       "type": "object",

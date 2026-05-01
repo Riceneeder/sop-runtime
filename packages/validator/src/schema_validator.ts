@@ -49,11 +49,8 @@ const STEP_KEYS = new Set([
 /** Allowed keys on executor configuration objects. 执行器配置对象允许出现的字段。 */
 const EXECUTOR_KEYS = new Set([
   'kind',
-  'tool',
-  'model',
-  'command_template',
-  'prompt_template',
-  'path',
+  'name',
+  'config',
   'timeout_secs',
   'allow_network',
   'env',
@@ -256,59 +253,15 @@ function validateExecutor(value: unknown, path: string, diagnostics: Diagnostic[
   }
 
   pushUnknownKeys(value, EXECUTOR_KEYS, path, diagnostics);
-  requireEnum(value.kind, ['sandbox_tool', 'sandbox_script', 'sandbox_model'], joinPath(path, 'kind'), diagnostics);
-  requireNonEmptyString(value.path, joinPath(path, 'path'), diagnostics);
+  requireNonEmptyString(value.kind, joinPath(path, 'kind'), diagnostics);
+  requireNonEmptyString(value.name, joinPath(path, 'name'), diagnostics);
+  if (value.config !== undefined) {
+    requireObject(value.config, joinPath(path, 'config'), diagnostics);
+  }
   requireIntegerAtLeast(value.timeout_secs, 1, joinPath(path, 'timeout_secs'), diagnostics);
   requireBoolean(value.allow_network, joinPath(path, 'allow_network'), diagnostics);
   validateStringMap(value.env, joinPath(path, 'env'), diagnostics);
   validateResourceLimits(value.resource_limits, joinPath(path, 'resource_limits'), diagnostics);
-
-  const requiresToolFields = value.kind === 'sandbox_tool' || value.kind === 'sandbox_script';
-  const requiresModelFields = value.kind === 'sandbox_model';
-
-  validateExecutorStringField(value, 'tool', path, diagnostics, requiresToolFields);
-  validateExecutorStringField(value, 'command_template', path, diagnostics, requiresToolFields);
-  validateExecutorStringField(value, 'model', path, diagnostics, requiresModelFields);
-  validateExecutorStringField(value, 'prompt_template', path, diagnostics, requiresModelFields);
-
-}
-
-/**
- * Validate a string field whose requiredness depends on executor kind.
- *
- * 校验某个字符串字段，并根据执行器类型决定是否必填。
- *
- * @param value - Executor object under validation.
- * 当前正在校验的执行器对象。
- * @param key - Field name to inspect.
- * 需要检查的字段名。
- * @param path - Base diagnostic path for the executor object.
- * 执行器对象的基础诊断路径。
- * @param diagnostics - Mutable diagnostic collection.
- * 可变诊断结果集合。
- * @param required - Whether the field must exist for the current executor kind.
- * 当前执行器类型下该字段是否必须存在。
- */
-function validateExecutorStringField(
-  value: Record<string, unknown>,
-  key: 'command_template' | 'model' | 'prompt_template' | 'tool',
-  path: string,
-  diagnostics: Diagnostic[],
-  required: boolean,
-): void {
-  const fieldPath = joinPath(path, key);
-
-  if (!Object.hasOwn(value, key)) {
-    if (required) {
-      diagnostics.push({'code': 'schema_type', 'message': 'Expected string.', 'path': fieldPath});
-    }
-
-    return;
-  }
-
-  if (typeof value[key] !== 'string') {
-    diagnostics.push({'code': 'schema_type', 'message': 'Expected string.', 'path': fieldPath});
-  }
 }
 
 /**

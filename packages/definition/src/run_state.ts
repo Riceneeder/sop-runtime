@@ -21,7 +21,7 @@ export const RUN_STATUSES = ['running', 'succeeded', 'failed', 'cancelled'] as c
  *
  * @public
  */
-export const RUN_PHASES = ['ready', 'awaiting_decision', 'terminated'] as const;
+export const RUN_PHASES = ['ready', 'awaiting_decision', 'paused', 'terminated'] as const;
 /**
  * Fine-grained lifecycle status for an individual step.
  *
@@ -176,4 +176,13 @@ export interface RunState {
   created_at?: string;
   /** Optional last-update timestamp. 最后更新时间戳，可选。 */
   updated_at?: string;
+  /** Pause metadata present only when the run is paused. 仅在暂停时存在的暂停元数据。 */
+  pause?: {
+    /** Phase the run was in before being paused. 暂停前运行所处的阶段。 */
+    previous_phase: Exclude<RunPhase, 'paused'>;
+    /** Reason why the run was paused. 暂停原因。 */
+    reason: string;
+    /** Timestamp when the run was paused. 暂停发生的时间戳。 */
+    paused_at: string;
+  };
 }

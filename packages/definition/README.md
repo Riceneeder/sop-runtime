@@ -21,8 +21,8 @@
 对外入口是 [`src/index.ts`](./src/index.ts)。从这个入口可以拿到以下几组导出：
 
 - JSON 基础类型：`JsonPrimitive`、`JsonArray`、`JsonObject`、`JsonValue`
-- SOP 定义类型：`SopDefinition`、`StepDefinition`、`Transition`、`RetryPolicy`、`ExecutorConfig` 等
-- 运行时状态类型：`RunState`、`RunStatus`、`RunPhase`、`HistoryEntry`、`StepState` 等
+- SOP 定义类型：`SopDefinition`、`StepDefinition`、`Transition`、`RetryPolicy`、`ExecutorConfig`（通用 `kind` + `name` 引用，`config` 可选）等
+- 运行时状态类型：`RunState`、`RunStatus`、`RunPhase`（含 `paused`）、`HistoryEntry`、`StepState` 等
 - 执行结果类型：`StepResult`、`AcceptedStepResult`、`StepPacket`、`Decision`、`StepRun` 等
 - 常量集合：`RUN_STATUSES`、`RUN_PHASES`、`STEP_LIFECYCLES`、`EXECUTOR_RESULT_STATUSES`、`ACCEPTED_STEP_RESULT_STATUSES`、`RETRYABLE_STEP_RESULT_STATUSES`
 - 表达式解析能力：`parseExpressionTemplate`、`parseExpressionBody`、`ExpressionSyntaxError` 以及表达式 AST 类型

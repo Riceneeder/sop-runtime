@@ -29,10 +29,9 @@ function buildDefinition(): SopDefinition {
       'title': 'A',
       'inputs': {},
       'executor': {
-        'kind': 'sandbox_tool',
-        'tool': 'tool',
-        'command_template': 'run',
-        'path': '/tmp',
+        'kind': 'tool',
+          'name': 'tool',
+          'config': { 'command_template': 'run', 'path': '/tmp' },
         'timeout_secs': 120,
         'allow_network': true,
         'env': {},

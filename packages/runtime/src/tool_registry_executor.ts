@@ -55,17 +55,21 @@ export class ToolRegistryExecutor implements StepExecutor {
       });
     }
 
-    const handler = this.handlers[packet.executor.tool];
+    const toolName = packet.executor.name;
+    const handler = this.handlers[toolName];
     if (handler === undefined) {
       return this.buildErrorResult(packet, {
         'status': 'tool_error',
         'code': UNKNOWN_TOOL_ERROR_CODE,
-        'message': `No handler is registered for tool ${packet.executor.tool}.`,
-        'details': {'tool': packet.executor.tool},
+        'message': `No handler is registered for tool ${toolName}.`,
+        'details': {'tool': toolName},
       });
     }
 
-    const command = renderCommandTemplate(packet.executor.command_template, packet.inputs);
+    const commandTemplate = typeof packet.executor.config?.command_template === 'string'
+      ? packet.executor.config.command_template
+      : '';
+    const command = renderCommandTemplate(commandTemplate, packet.inputs);
     const invocation = await this.executeWithTimeout(() => handler({
       'run_id': packet.run_id,
       'step_id': packet.step_id,
@@ -79,9 +83,9 @@ export class ToolRegistryExecutor implements StepExecutor {
       return this.buildErrorResult(packet, {
         'status': 'timeout',
         'code': TOOL_HANDLER_TIMEOUT_ERROR_CODE,
-        'message': `Tool ${packet.executor.tool} timed out.`,
+        'message': `Tool ${toolName} timed out.`,
         'details': {
-          'tool': packet.executor.tool,
+          'tool': toolName,
           'timeout_secs': packet.executor.timeout_secs,
         },
       });
@@ -91,9 +95,9 @@ export class ToolRegistryExecutor implements StepExecutor {
       return this.buildErrorResult(packet, {
         'status': 'tool_error',
         'code': TOOL_HANDLER_FAILURE_ERROR_CODE,
-        'message': `Tool ${packet.executor.tool} handler failed.`,
+        'message': `Tool ${toolName} handler failed.`,
         'details': {
-          'tool': packet.executor.tool,
+          'tool': toolName,
           'reason': toErrorMessage(invocation.error),
         },
       });

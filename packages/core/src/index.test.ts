@@ -26,10 +26,9 @@ const definition: SopDefinition = {
         'company': '${run.input.company}',
       },
       'executor': {
-        'kind': 'sandbox_tool',
-        'tool': 'web_search',
-        'command_template': 'Search {{company}}',
-        'path': '/tmp/workspace',
+        'kind': 'web_search',
+          'name': 'web_search',
+          'config': { 'command_template': 'Search {{company}}', 'path': '/tmp/workspace' },
         'timeout_secs': 120,
         'allow_network': true,
         'env': {},

@@ -98,12 +98,12 @@ export function validateSemanticDefinition(definition: SopDefinition): Diagnosti
       if (
         typeof transition === 'object'
         && transition !== null
-        && typeof transition.next_step === 'string'
-        && !knownStepIds.has(transition.next_step)
+        && typeof (transition as Record<string, unknown>).next_step === 'string'
+        && !knownStepIds.has((transition as Record<string, unknown>).next_step as string)
       ) {
         diagnostics.push({
           'code': 'next_step_missing',
-          'message': `Transition points to unknown step: ${transition.next_step}`,
+          'message': `Transition points to unknown step: ${(transition as Record<string, unknown>).next_step}`,
           'path': joinPath('steps', stepIndex, 'transitions', transitionKey, 'next_step'),
         });
       }

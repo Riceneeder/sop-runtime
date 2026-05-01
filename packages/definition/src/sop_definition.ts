@@ -154,17 +154,32 @@ export interface ResourceLimits {
 }
 
 /**
- * Common executor settings shared by all executor kinds.
+ * Generic executor configuration referenced by kind + name.
  *
- * 所有执行器类型共享的基础配置。
+ * Executor handlers are registered externally via RuntimeHost.registerExecutor(kind, name, handler).
+ * The SOP definition only references executors — it does not embed their implementation details.
+ *
+ * 通用执行器配置，通过 kind + name 引用外部注册的 handler。
  */
-interface BaseExecutorConfig {
+export interface ExecutorConfig {
   /**
-   * Filesystem or logical path used to locate the executor.
+   * Executor kind used to look up the registered handler.
    *
-   * 用于定位执行器的文件系统或逻辑路径。
+   * 用于查找已注册 handler 的执行器种类。
    */
-  path: string;
+  kind: string;
+  /**
+   * Executor name used to look up the registered handler.
+   *
+   * 用于查找已注册 handler 的执行器名称。
+   */
+  name: string;
+  /**
+   * Optional configuration forwarded to the registered handler.
+   *
+   * 转发给已注册 handler 的可选配置。
+   */
+  config?: JsonObject;
   /**
    * Hard timeout for a single attempt, in seconds.
    *
@@ -190,102 +205,6 @@ interface BaseExecutorConfig {
    */
   resource_limits: ResourceLimits;
 }
-
-/**
- * Executor that invokes a named sandbox tool.
- *
- * 通过命名沙箱工具执行步骤的执行器配置。
- *
- * @public
- */
-export interface SandboxToolExecutorConfig extends BaseExecutorConfig {
-  /**
-   * Discriminant for tool-based sandbox execution.
-   *
-   * 基于工具的沙箱执行类型标识。
-   */
-  kind: 'sandbox_tool';
-  /**
-   * Tool name invoked inside the sandbox.
-   *
-   * 在沙箱内调用的工具名称。
-   */
-  tool: string;
-  /**
-   * Template used to build the tool command.
-   *
-   * 用于构造工具命令的模板字符串。
-   */
-  command_template: string;
-}
-
-/**
- * Executor that runs a script-like command inside the sandbox.
- *
- * 在沙箱内执行脚本命令的执行器配置。
- *
- * @public
- */
-export interface SandboxScriptExecutorConfig extends BaseExecutorConfig {
-  /**
-   * Discriminant for script-based sandbox execution.
-   *
-   * 基于脚本的沙箱执行类型标识。
-   */
-  kind: 'sandbox_script';
-  /**
-   * Tool or interpreter used to launch the script.
-   *
-   * 启动脚本所使用的工具或解释器。
-   */
-  tool: string;
-  /**
-   * Template used to build the script command.
-   *
-   * 用于构造脚本命令的模板字符串。
-   */
-  command_template: string;
-}
-
-/**
- * Executor that delegates a step to a sandboxed model request.
- *
- * 通过沙箱模型请求执行步骤的执行器配置。
- *
- * @public
- */
-export interface SandboxModelExecutorConfig extends BaseExecutorConfig {
-  /**
-   * Discriminant for model-based sandbox execution.
-   *
-   * 基于模型的沙箱执行类型标识。
-   */
-  kind: 'sandbox_model';
-  /**
-   * Model name used for the execution request.
-   *
-   * 发起执行请求时使用的模型名称。
-   */
-  model: string;
-  /**
-   * Prompt template resolved before the model call.
-   *
-   * 模型调用前会先展开的提示词模板。
-   */
-  prompt_template: string;
-}
-
-/**
- * Discriminated union of all supported executor configurations.
- *
- * 所有受支持执行器配置的可辨识联合类型。
- *
- * @public
- */
-export type ExecutorConfig =
-  | SandboxToolExecutorConfig
-  | SandboxScriptExecutorConfig
-  | SandboxModelExecutorConfig;
 
 /**
  * One author-defined step inside a SOP workflow.

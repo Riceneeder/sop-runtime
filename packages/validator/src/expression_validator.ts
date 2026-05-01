@@ -71,13 +71,21 @@ export function validateExpressionDefinition(definition: SopDefinition): Diagnos
       return;
     }
 
-    if (typeof step.inputs === 'object' && step.inputs !== null && !Array.isArray(step.inputs)) {
-      visitTemplateValue(step.inputs, joinPath('steps', stepIndex, 'inputs'), context, diagnostics);
+    const stepObj = step as unknown as Record<string, unknown>;
+
+    if (typeof stepObj.inputs === 'object' && stepObj.inputs !== null && !Array.isArray(stepObj.inputs)) {
+      visitTemplateValue(stepObj.inputs, joinPath('steps', stepIndex, 'inputs'), context, diagnostics);
     }
 
-    if (typeof step.executor === 'object' && step.executor !== null) {
-      if (typeof step.executor.path === 'string') {
-        validateTemplate(step.executor.path, joinPath('steps', stepIndex, 'executor', 'path'), context, diagnostics);
+    // Validate expression templates in executor config string values.
+    if (typeof stepObj.executor === 'object' && stepObj.executor !== null && !Array.isArray(stepObj.executor)) {
+      const executorConfig = (stepObj.executor as Record<string, unknown>).config;
+      if (typeof executorConfig === 'object' && executorConfig !== null && !Array.isArray(executorConfig)) {
+        for (const [key, value] of Object.entries(executorConfig)) {
+          if (typeof value === 'string') {
+            validateTemplate(value, joinPath('steps', stepIndex, 'executor', 'config', key), context, diagnostics);
+          }
+        }
       }
     }
   });
@@ -211,7 +219,7 @@ function validateExpressionNode(
   options: ExpressionValidationOptions = {},
 ): void {
   if (node.kind === 'coalesce') {
-    node.expressions.forEach((expression) => validateExpressionNode(expression, path, context, diagnostics, options));
+    node.expressions.forEach((expression: ExpressionNode) => validateExpressionNode(expression, path, context, diagnostics, options));
     return;
   }
 

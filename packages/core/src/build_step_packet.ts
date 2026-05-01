@@ -56,28 +56,12 @@ export function buildStepPacket(params: {
     });
   }
 
-  const renderedExecutorPath = renderJsonValueTemplates({
-    'value': currentStep.step.executor.path,
-    'state': params.state,
-  });
-  if (typeof renderedExecutorPath !== 'string') {
-    throw new CoreError('expression_evaluation_failed', {
-      'message': 'Executor path must resolve to a string.',
-      'details': {
-        'step_id': currentStep.step_id,
-      },
-    });
-  }
-
   return {
     'run_id': params.state.run_id,
     'step_id': currentStep.step.id,
     'attempt': currentStep.attempt,
     'inputs': renderedInputs,
-    'executor': {
-      ...currentStep.step.executor,
-      'path': renderedExecutorPath,
-    },
+    'executor': currentStep.step.executor,
     'output_schema': currentStep.step.output_schema,
   };
 }

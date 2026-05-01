@@ -36,10 +36,9 @@ function buildDefinition(): SopDefinition {
         },
       },
       'executor': {
-        'kind': 'sandbox_tool',
-        'tool': 'web_search',
-        'command_template': 'Search ${run.input.company}',
-        'path': '${run.input.workspace}',
+        'kind': 'web_search',
+          'name': 'web_search',
+          'config': { 'command_template': 'Search ${run.input.company}', 'path': '${run.input.workspace}' },
         'timeout_secs': 120,
         'allow_network': true,
         'env': {},
@@ -73,7 +72,7 @@ function buildDefinition(): SopDefinition {
 }
 
 describe('buildStepPacket', () => {
-  test('renders nested inputs and executor.path without touching command_template', () => {
+  test('renders nested inputs and forwards executor config unchanged', () => {
     const definition = buildDefinition();
     const state = createRun({
       definition,
@@ -91,11 +90,12 @@ describe('buildStepPacket', () => {
         'location': '/tmp/default',
       },
     });
-    expect(packet.executor.path).toBe('/tmp/default');
-    expect(packet.executor.kind).toBe('sandbox_tool');
-    if (packet.executor.kind === 'sandbox_tool') {
-      expect(packet.executor.command_template).toBe('Search ${run.input.company}');
-    }
+    expect(packet.executor.kind).toBe('web_search');
+    expect(packet.executor.name).toBe('web_search');
+    expect(packet.executor.config).toEqual({
+      'command_template': 'Search ${run.input.company}',
+      'path': '${run.input.workspace}',
+    });
   });
 
   test('rejects non-JSON values resolved from direct references', () => {

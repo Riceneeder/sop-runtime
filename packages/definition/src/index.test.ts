@@ -42,10 +42,8 @@ describe('definition exports', () => {
             'company': '${run.input.company}',
           },
           'executor': {
-            'kind': 'sandbox_tool',
-            'tool': 'web_search',
-            'command_template': 'Search {{company}}',
-            'path': '/tmp/workspace',
+            'kind': 'web_search',
+            'name': 'google_search',
             'timeout_secs': 120,
             'allow_network': true,
             'env': {},
@@ -75,7 +73,7 @@ describe('definition exports', () => {
     const state = {} as RunState;
 
     expect(input.company).toBe('Acme');
-    expect(definition.steps[0]?.executor.kind).toBe('sandbox_tool');
+    expect(definition.steps[0]?.executor.kind).toBe('web_search');
     expect(state).toBeDefined();
     expect(RUN_STATUSES).toContain('running');
     expect(RUN_PHASES).toContain('ready');
@@ -92,12 +90,11 @@ describe('definition exports', () => {
     expect(ExpressionSyntaxError).toBeDefined();
   });
 
-  test('models executors as a discriminated union and narrows retry_on to supported statuses', () => {
-    const toolExecutor: ExecutorConfig = {
-      'kind': 'sandbox_tool',
-      'tool': 'web_search',
-      'command_template': 'Search {{company}}',
-      'path': '/tmp/workspace',
+  test('models executors as a generic kind+name config and narrows retry_on to supported statuses', () => {
+    const webSearchExecutor: ExecutorConfig = {
+      'kind': 'web_search',
+      'name': 'google_search',
+      'config': { 'region': 'us-east' },
       'timeout_secs': 120,
       'allow_network': true,
       'env': {},
@@ -106,17 +103,16 @@ describe('definition exports', () => {
         'max_artifacts': 1,
       },
     };
-    const modelExecutor: ExecutorConfig = {
-      'kind': 'sandbox_model',
-      'model': 'small-model',
-      'prompt_template': 'Normalize records',
-      'path': '/tmp/workspace',
-      'timeout_secs': 120,
+    const llmExecutor: ExecutorConfig = {
+      'kind': 'llm',
+      'name': 'gpt_summarize',
+      'config': { 'model': 'gpt-4', 'temperature': 0.3 },
+      'timeout_secs': 60,
       'allow_network': false,
-      'env': {},
+      'env': { 'API_KEY': 'sk-xxx' },
       'resource_limits': {
-        'max_output_bytes': 1024,
-        'max_artifacts': 1,
+        'max_output_bytes': 4096,
+        'max_artifacts': 0,
       },
     };
     const retryPolicy: RetryPolicy = {
@@ -130,41 +126,29 @@ describe('definition exports', () => {
       'reason': 'search_failed',
     };
 
-    expect(toolExecutor.kind).toBe('sandbox_tool');
-    expect(modelExecutor.kind).toBe('sandbox_model');
+    expect(webSearchExecutor.kind).toBe('web_search');
+    expect(webSearchExecutor.name).toBe('google_search');
+    expect(webSearchExecutor.config).toEqual({ 'region': 'us-east' });
+    expect(llmExecutor.kind).toBe('llm');
+    expect(llmExecutor.config).toEqual({ 'model': 'gpt-4', 'temperature': 0.3 });
     expect(retryPolicy.retry_on).toContain('invalid_output');
     expect(terminatedHistoryEntry.run_status).toBe('failed');
 
-    const invalidToolExecutor: ExecutorConfig = {
-      'kind': 'sandbox_tool',
-      // @ts-expect-error sandbox_tool executors reject model-only fields.
-      'model': 'small-model',
-      'prompt_template': 'Normalize records',
-      'path': '/tmp/workspace',
-      'timeout_secs': 120,
+    // config is optional — executor without config is valid
+    const minimalExecutor: ExecutorConfig = {
+      'kind': 'shell',
+      'name': 'run_script',
+      'timeout_secs': 30,
       'allow_network': false,
       'env': {},
       'resource_limits': {
-        'max_output_bytes': 1024,
-        'max_artifacts': 1,
+        'max_output_bytes': 256,
+        'max_artifacts': 0,
       },
     };
-    const invalidModelExecutor: ExecutorConfig = {
-      'kind': 'sandbox_model',
-      // @ts-expect-error sandbox_model executors reject tool-specific fields.
-      'tool': 'web_search',
-      'command_template': 'Search {{company}}',
-      'model': 'small-model',
-      'prompt_template': 'Normalize records',
-      'path': '/tmp/workspace',
-      'timeout_secs': 120,
-      'allow_network': false,
-      'env': {},
-      'resource_limits': {
-        'max_output_bytes': 1024,
-        'max_artifacts': 1,
-      },
-    };
+    expect(minimalExecutor.config).toBeUndefined();
+    expect(minimalExecutor.kind).toBe('shell');
+
     const invalidRetryPolicy: RetryPolicy = {
       'max_attempts': 2,
       'backoff_secs': [5],
@@ -180,10 +164,13 @@ describe('definition exports', () => {
       'reason': 'still_running',
     };
 
-    expect(invalidToolExecutor).toBeDefined();
-    expect(invalidModelExecutor).toBeDefined();
     expect(invalidRetryPolicy).toBeDefined();
     expect(missingRetryPolicyFields).toBeDefined();
     expect(invalidTerminatedHistoryEntry).toBeDefined();
+  });
+
+  test('paused phase is included in RUN_PHASES', () => {
+    expect(RUN_PHASES).toContain('paused');
+    expect(RUN_PHASES).toEqual(['ready', 'awaiting_decision', 'paused', 'terminated']);
   });
 });

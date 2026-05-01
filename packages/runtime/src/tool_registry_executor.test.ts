@@ -22,9 +22,8 @@ function buildPacket(overrides: Partial<RuntimeStepPacket> = {}): RuntimeStepPac
     },
     'executor': {
       'kind': 'sandbox_tool',
-      'tool': 'demo_tool',
-      'command_template': 'do ${company} ${nested.value} ${missing} ${unknown}',
-      'path': '/tmp',
+          'name': 'demo_tool',
+          'config': { 'command_template': 'do ${company} ${nested.value} ${missing} ${unknown}' },
       'timeout_secs': 1,
       'allow_network': false,
       'env': {},
@@ -327,10 +326,9 @@ describe('ToolRegistryExecutor', () => {
     const executor = new ToolRegistryExecutor({'handlers': {}});
     const packet = buildPacket({
       'executor': {
-        'kind': 'sandbox_script',
-        'tool': 'bash',
-        'command_template': 'echo ok',
-        'path': '/tmp',
+        'kind': 'bash',
+          'name': 'bash',
+          'config': { 'command_template': 'echo ok', 'path': '/tmp' },
         'timeout_secs': 1,
         'allow_network': false,
         'env': {},
@@ -352,10 +350,9 @@ describe('ToolRegistryExecutor', () => {
     const executor = new ToolRegistryExecutor({'handlers': {}});
     const packet = buildPacket({
       'executor': {
-        'kind': 'sandbox_model',
-        'model': 'demo-model',
-        'prompt_template': 'hello',
-        'path': '/tmp',
+        'kind': 'llm',
+          'name': 'demo-model',
+          'config': { 'model': 'demo-model', 'prompt_template': 'hello', 'path': '/tmp' },
         'timeout_secs': 1,
         'allow_network': false,
         'env': {},
@@ -436,9 +433,8 @@ describe('ToolRegistryExecutor integration with RuntimeHost', () => {
         },
         'executor': {
           'kind': 'sandbox_tool',
-          'tool': 'summarize',
-          'command_template': 'summarize ${company}',
-          'path': '/tmp',
+          'name': 'summarize',
+          'config': { 'command_template': 'summarize' },
           'timeout_secs': 120,
           'allow_network': true,
           'env': {},
@@ -476,7 +472,6 @@ describe('ToolRegistryExecutor integration with RuntimeHost', () => {
       }],
       'final_output': {
         'summary': '${steps.step_a.output.summary}',
-        'artifact': '${steps.step_a.artifacts.report_md}',
       },
     };
 
@@ -509,7 +504,6 @@ describe('ToolRegistryExecutor integration with RuntimeHost', () => {
     expect(completed.state.status).toBe('succeeded');
     expect(completed.final_output).toEqual({
       'summary': 'summary for Acme',
-      'artifact': '/tmp/report.md',
     });
   });
 });

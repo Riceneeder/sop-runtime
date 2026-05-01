@@ -136,10 +136,9 @@ function buildDefinition(overrides: Partial<SopDefinition['policies']> = {}): So
         'company': '${run.input.company}',
       },
       'executor': {
-        'kind': 'sandbox_tool',
-        'tool': 'tool',
-        'command_template': 'run',
-        'path': '/tmp',
+        'kind': 'tool',
+          'name': 'tool',
+          'config': { 'command_template': 'run', 'path': '/tmp' },
         'timeout_secs': 120,
         'allow_network': true,
         'env': {},
