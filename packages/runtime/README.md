@@ -37,6 +37,7 @@ definition -> validator -> core -> runtime
 - `DefaultDecisionProvider`：选择当前步骤 `default_outcome` 的默认决策器。
 - `StateStore`、`StepExecutor`、`DecisionProvider`：外部集成需要实现的核心端口。
 - `RuntimeEvent`、`EventSink`、`RuntimeLogger`：审计和观测相关端口。
+- `BeforeStepHook`、`AfterStepHook`、`HookControl`：step 前后受控介入点。
 - `RuntimeError`、`RuntimeErrorCode`：运行层错误。
 - `CoreError`：从 core 包透传，便于调用方统一捕获。
 
@@ -100,6 +101,65 @@ handler 接收 `{packet, definition, state, config}`，必须返回 `StepResult`
 
 `ToolRegistryExecutor` 是遗留参考实现，实现 `StepExecutor` 接口用于向后兼容。它仅处理 `kind === 'sandbox_tool'` 的步骤。新代码应使用 `RuntimeHost.registerExecutor` 而非 `ToolRegistryExecutor`。
 
+## Hook pipeline
+
+`RuntimeHost` 支持可选的 `beforeStep` / `afterStep` hook，用于接入审计、策略拦截、输入修正或人工控制。Hook 是 runtime 端口能力，不写入 SOP JSON schema。
+
+```ts
+const host = new RuntimeHost({
+  'store': new InMemoryStateStore(),
+  'decisionProvider': new DefaultDecisionProvider(),
+  'hooks': {
+    'beforeStep': [(input) => ({
+      'inputs': {...input.packet.inputs, 'company': 'Rewritten'},
+      'config': {...(input.packet.executor.config ?? {}), 'trace_id': 'trace-001'},
+    })],
+    'afterStep': [(input) => {
+      if (input.result.status === 'timeout') {
+        return {'control': {'action': 'pause', 'reason': 'timeout review'}};
+      }
+    }],
+  },
+});
+```
+
+执行顺序：
+
+```text
+runReadyStep
+  -> buildStepPacket(core)
+  -> beforeStep hooks
+  -> max_run_secs check
+  -> beforeStep control, if any
+  -> executor registry dispatch
+  -> max_run_secs check
+  -> afterStep hooks
+  -> max_run_secs check
+  -> applyStepResult(core)
+  -> step_result_accepted event
+  -> max_run_secs check
+  -> afterStep control, if any
+```
+
+Hook 输入是隔离副本。每个 hook 都会收到深拷贝后的 `packet`、`definition` 和 `state`；原地修改这些对象不会影响后续 core 判定。`beforeStep` 想改变执行输入时必须返回 `inputs` 或 `config`，直接改 `packet.executor.env`、`resource_limits` 或 definition 不会生效。
+
+Hook 返回值是 strict 的：
+
+- `beforeStep` 只能返回 `inputs`、`config`、`control`。
+- `afterStep` 只能返回 `result`、`control`。
+- `afterStep.result` 只能包含 `status`、`output`、`artifacts`、`error`、`metrics`。
+- `beforeStep.inputs` 和 `beforeStep.config` 必须是递归 JSON-safe object；函数、`Date`、`Map`、`Infinity`、`undefined`、循环引用都会触发 `RuntimeError('hook_rejected')`。
+- `outcome_id`、`next_step`、`transition`、`state` 等状态机字段一律拒绝。
+
+`control` 支持两种动作：
+
+- `{'action': 'pause', 'reason': string}`
+- `{'action': 'terminate', 'runStatus': 'failed' | 'cancelled', 'reason': string}`
+
+`beforeStep` control 在 executor 之前生效，因此会跳过执行器。`afterStep` control 只在 `applyStepResult(core)` 成功接纳 result 后生效；只要 core 接纳了 result，无论 accepted status 是 `success`、`tool_error`、`timeout`、`sandbox_error` 还是规范化后的 `invalid_output`，pause / terminate 都可以生效。如果 result 被 core 拒绝，control 不生效。
+
+`max_run_secs` 优先于 hook control。RuntimeHost 会在 `beforeStep` hooks 后、executor 后、`afterStep` hooks 后，以及 `afterStep` control 前重新检查 deadline；过期 run 会以 `failed / max_run_secs_exceeded` 终止。
+
 ## RuntimeHost 生命周期
 
 `RuntimeHost` 暴露以下主要方法：
@@ -124,7 +184,9 @@ startRun
 
 runReadyStep
   -> buildStepPacket(core)
+  -> beforeStep hooks
   -> dispatch to registered executor handler (kind + name)
+  -> afterStep hooks
   -> applyStepResult(core)
   -> awaiting_decision
 
@@ -175,8 +237,10 @@ RuntimeHost 在执行动作前会检查：
 - `run_started`
 - `run_reused`
 - `step_packet_built`
-- `step_result_accepted`
+- `step_result_accepted`，其中 `details.status` 是 core 规范化后的 accepted status，例如 `invalid_output`
 - `decision_applied`
+- `run_paused`
+- `run_resumed`
 - `run_terminated`
 
 事件用于审计和集成层观测，不参与 core 状态机判定。事件 sink 失败会让当前 host 调用失败，因此生产环境实现应自行决定是否吞掉下游观测系统异常。

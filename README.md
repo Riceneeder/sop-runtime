@@ -98,6 +98,7 @@ console.log(completed.final_output);
 - 校验模板表达式中的 `run.input.*`、`steps.<step_id>.output.*`、`steps.<step_id>.artifacts.*` 引用。
 - 在单进程内用 `InMemoryStateStore` 跑通本地 demo 或测试。
 - 通过 `RuntimeHost` 接入自定义 store、executor、decision provider、logger 和 event sink。
+- 通过 runtime hooks 在 step 前后受控改写输入 / result，并请求 pause 或 terminate。
 
 ## 暂不包含
 

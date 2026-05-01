@@ -266,7 +266,6 @@ export class RuntimeHost {
       'attempt': packet.attempt,
     });
 
-    // --- beforeStep hooks ---
     let beforeControl: HookControl | null = null;
     let currentInputs = structuredClone(packet.inputs) as JsonObject;
     let currentConfig = structuredClone(packet.executor.config) as JsonObject | undefined;
@@ -276,17 +275,8 @@ export class RuntimeHost {
       let hookResult;
       try {
         hookResult = hook({
-          packet: {
-            'run_id': packet.run_id,
-            'step_id': packet.step_id,
-            'attempt': packet.attempt,
-            'inputs': structuredClone(currentInputs) as JsonObject,
-            'executor': {
-              ...packet.executor,
-              'config': currentConfig !== undefined ? structuredClone(currentConfig) as JsonObject : undefined,
-            },
-          },
-          'definition': params.definition,
+          'packet': clonePacketForHook(packet, currentInputs, currentConfig),
+          'definition': structuredClone(params.definition) as SopDefinition,
           state: structuredClone(state) as RunState,
         });
       } catch (err: unknown) {
@@ -304,39 +294,33 @@ export class RuntimeHost {
         continue;
       }
 
-      hookResult = hookResult as Record<string, unknown>;
+      assertHookResultObject(hookResult, 'beforeStep', i);
+      assertAllowedHookKeys(hookResult, BEFORE_STEP_HOOK_RESULT_KEYS, 'beforeStep', i, 'beforeStep hook result');
 
       if (hookResult.control !== undefined) {
-        validateHookControl(hookResult.control);
+        validateHookControl(hookResult.control, 'beforeStep', i);
         beforeControl = hookResult.control as HookControl;
       }
       if (hookResult.inputs !== undefined) {
-        if (typeof hookResult.inputs !== 'object' || hookResult.inputs === null || Array.isArray(hookResult.inputs)) {
-          throw new RuntimeError('hook_rejected', {
-            'message': 'beforeStep hook returned invalid inputs.',
-            'details': {'stage': 'beforeStep', 'index': i},
-          });
-        }
-        currentInputs = hookResult.inputs as JsonObject;
+        assertJsonSafeObject(hookResult.inputs, 'beforeStep', i, 'inputs');
+        currentInputs = structuredClone(hookResult.inputs) as JsonObject;
       }
       if (hookResult.config !== undefined) {
-        if (typeof hookResult.config !== 'object' || hookResult.config === null || Array.isArray(hookResult.config)) {
-          throw new RuntimeError('hook_rejected', {
-            'message': 'beforeStep hook returned invalid config.',
-            'details': {'stage': 'beforeStep', 'index': i},
-          });
-        }
-        currentConfig = hookResult.config as JsonObject;
+        assertJsonSafeObject(hookResult.config, 'beforeStep', i, 'config');
+        currentConfig = structuredClone(hookResult.config) as JsonObject;
       }
     }
 
-    // Apply beforeStep mutations to the packet for executor dispatch
+    state = await this.enforceMaxRunSecs(params.definition, state);
+    if (state.phase === 'terminated') {
+      return state;
+    }
+
     packet.inputs = currentInputs;
     if (currentConfig !== undefined) {
       (packet.executor as { config?: JsonObject }).config = currentConfig;
     }
 
-    // beforeStep control: pause or terminate skips executor
     if (beforeControl !== null) {
       return this.handleBeforeStepControl(beforeControl, params.definition, state);
     }
@@ -357,15 +341,9 @@ export class RuntimeHost {
       let hookResult;
       try {
         hookResult = hook({
-          packet: {
-            'run_id': packet.run_id,
-            'step_id': packet.step_id,
-            'attempt': packet.attempt,
-            'inputs': structuredClone(packet.inputs) as JsonObject,
-            'executor': packet.executor,
-          },
+          'packet': clonePacketForHook(packet, packet.inputs, packet.executor.config),
           'result': structuredClone(currentResult) as StepResult,
-          'definition': params.definition,
+          'definition': structuredClone(params.definition) as SopDefinition,
           state: structuredClone(state) as RunState,
         });
       } catch (err: unknown) {
@@ -383,25 +361,25 @@ export class RuntimeHost {
         continue;
       }
 
-      hookResult = hookResult as Record<string, unknown>;
+      assertHookResultObject(hookResult, 'afterStep', i);
+      assertAllowedHookKeys(hookResult, AFTER_STEP_HOOK_RESULT_KEYS, 'afterStep', i, 'afterStep hook result');
 
       if (hookResult.control !== undefined) {
-        validateHookControl(hookResult.control);
+        validateHookControl(hookResult.control, 'afterStep', i);
         afterControl = hookResult.control as HookControl;
       }
       if (hookResult.result !== undefined) {
-        if (typeof hookResult.result !== 'object' || hookResult.result === null || Array.isArray(hookResult.result)) {
-          throw new RuntimeError('hook_rejected', {
-            'message': 'afterStep hook returned invalid result.',
-            'details': {'stage': 'afterStep', 'index': i},
-          });
-        }
+        assertHookResultObject(hookResult.result, 'afterStep', i);
+        assertAllowedHookKeys(hookResult.result, AFTER_STEP_RESULT_PATCH_KEYS, 'afterStep', i, 'afterStep result patch');
         currentResult = {...currentResult, ...(hookResult.result as Partial<StepResult>)};
       }
     }
 
-    // applyStepResult must succeed before any afterStep control takes effect.
-    // If core rejects the result, afterStep control does not take effect.
+    state = await this.enforceMaxRunSecs(params.definition, state);
+    if (state.phase === 'terminated') {
+      return state;
+    }
+
     const nextState = applyStepResult({
       'definition': params.definition,
       state,
@@ -409,17 +387,19 @@ export class RuntimeHost {
       'now': this.clock.now(),
     });
     await this.saveState(nextState);
+    const acceptedResult = nextState.accepted_results[currentResult.step_id]!;
     await this.emit('step_result_accepted', nextState.run_id, this.clock.now(), {
-      'step_id': currentResult.step_id,
-      'attempt': currentResult.attempt,
-      'status': currentResult.status,
+      'step_id': acceptedResult.step_id,
+      'attempt': acceptedResult.attempt,
+      'status': acceptedResult.status,
     });
 
-    // Apply afterStep control only if the result was accepted successfully.
-    // If core returned invalid_output or another non-success status, discard the control.
-    const acceptedResult = nextState.accepted_results[currentResult.step_id];
-    if (afterControl !== null && acceptedResult?.status === 'success') {
-      return this.handleAfterStepControl(afterControl, params.definition, nextState);
+    if (afterControl !== null) {
+      const stateBeforeControl = await this.enforceMaxRunSecs(params.definition, nextState);
+      if (stateBeforeControl.phase === 'terminated') {
+        return stateBeforeControl;
+      }
+      return this.handleAfterStepControl(afterControl, params.definition, stateBeforeControl);
     }
 
     return nextState;
@@ -789,8 +769,6 @@ export class RuntimeHost {
     definition: SopDefinition,
     state: RunState,
   ): Promise<RunState> {
-    // afterStep control only takes effect after applyStepResult succeeded,
-    // so the run is in awaiting_decision phase
     if (control.action === 'pause') {
       const paused = pauseRun({
         'definition': definition,
@@ -816,6 +794,147 @@ export class RuntimeHost {
     await this.emitRunTerminated(terminated, this.clock.now());
     return terminated;
   }
+}
+
+const BEFORE_STEP_HOOK_RESULT_KEYS = new Set(['inputs', 'config', 'control']);
+const AFTER_STEP_HOOK_RESULT_KEYS = new Set(['result', 'control']);
+const AFTER_STEP_RESULT_PATCH_KEYS = new Set(['status', 'output', 'artifacts', 'error', 'metrics']);
+
+function clonePacketForHook(
+  packet: ReturnType<typeof buildStepPacket>,
+  inputs: JsonObject,
+  config: JsonObject | undefined,
+): BeforeStepHookInput['packet'] {
+  const packetForHook = {
+    'run_id': packet.run_id,
+    'step_id': packet.step_id,
+    'attempt': packet.attempt,
+    inputs,
+    'executor': {
+      'kind': packet.executor.kind,
+      'name': packet.executor.name,
+      ...(config === undefined ? {} : {'config': config}),
+      'timeout_secs': packet.executor.timeout_secs,
+      'allow_network': packet.executor.allow_network,
+      'env': packet.executor.env,
+      'resource_limits': packet.executor.resource_limits,
+    },
+  };
+
+  return structuredClone(packetForHook) as BeforeStepHookInput['packet'];
+}
+
+function assertHookResultObject(
+  value: unknown,
+  stage: 'beforeStep' | 'afterStep',
+  index: number,
+): asserts value is Record<string, unknown> {
+  if (isStrictPlainObject(value)) {
+    return;
+  }
+
+  throw new RuntimeError('hook_rejected', {
+    'message': `${stage} hook must return an object when it returns a value.`,
+    'details': {stage, index},
+  });
+}
+
+function assertAllowedHookKeys(
+  value: Record<string, unknown>,
+  allowedKeys: Set<string>,
+  stage: 'beforeStep' | 'afterStep',
+  index: number,
+  container: string,
+): void {
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.has(key)) {
+      throw new RuntimeError('hook_rejected', {
+        'message': `${container} returned unsupported field: ${key}.`,
+        'details': {stage, index, 'field': key},
+      });
+    }
+  }
+}
+
+function assertJsonSafeObject(
+  value: unknown,
+  stage: 'beforeStep' | 'afterStep',
+  index: number,
+  field: string,
+): asserts value is JsonObject {
+  if (isJsonSafeObject(value, new Set<object>())) {
+    return;
+  }
+
+  throw new RuntimeError('hook_rejected', {
+    'message': `${stage} hook returned non JSON-safe ${field}.`,
+    'details': {stage, index, field},
+  });
+}
+
+function isJsonSafeObject(value: unknown, seen: Set<object>): value is JsonObject {
+  if (!isStrictPlainObject(value)) {
+    return false;
+  }
+
+  if (seen.has(value)) {
+    return false;
+  }
+
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    return false;
+  }
+
+  seen.add(value);
+  for (const item of Object.values(value)) {
+    if (!isJsonSafeValue(item, seen)) {
+      seen.delete(value);
+      return false;
+    }
+  }
+  seen.delete(value);
+
+  return true;
+}
+
+function isJsonSafeValue(value: unknown, seen: Set<object>): boolean {
+  if (value === null) {
+    return true;
+  }
+
+  if (typeof value === 'string' || typeof value === 'boolean') {
+    return true;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value);
+  }
+
+  if (Array.isArray(value)) {
+    if (seen.has(value)) {
+      return false;
+    }
+    seen.add(value);
+    for (let i = 0; i < value.length; i += 1) {
+      if (!Object.prototype.hasOwnProperty.call(value, i) || !isJsonSafeValue(value[i], seen)) {
+        seen.delete(value);
+        return false;
+      }
+    }
+    seen.delete(value);
+    return true;
+  }
+
+  return isJsonSafeObject(value, seen);
+}
+
+function isStrictPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 function renderPolicyKey(params: {
@@ -874,32 +993,42 @@ function assertDefinitionMatchesRun(definition: SopDefinition, state: RunState):
   });
 }
 
-function validateHookControl(control: unknown): asserts control is HookControl {
-  if (typeof control !== 'object' || control === null) {
+function validateHookControl(
+  control: unknown,
+  stage: 'beforeStep' | 'afterStep',
+  index: number,
+): asserts control is HookControl {
+  if (!isStrictPlainObject(control)) {
     throw new RuntimeError('hook_rejected', {
       'message': 'Hook control must be a non-null object.',
+      'details': {stage, index},
     });
   }
 
-  const c = control as Record<string, unknown>;
+  const c = control;
   if (c.action === 'pause') {
+    assertAllowedHookKeys(c, new Set(['action', 'reason']), stage, index, 'hook pause control');
     if (typeof c.reason !== 'string') {
       throw new RuntimeError('hook_rejected', {
         'message': 'Hook pause control requires a string reason.',
+        'details': {stage, index},
       });
     }
     return;
   }
 
   if (c.action === 'terminate') {
+    assertAllowedHookKeys(c, new Set(['action', 'runStatus', 'reason']), stage, index, 'hook terminate control');
     if (c.runStatus !== 'failed' && c.runStatus !== 'cancelled') {
       throw new RuntimeError('hook_rejected', {
         'message': 'Hook terminate control requires runStatus of "failed" or "cancelled".',
+        'details': {stage, index},
       });
     }
     if (typeof c.reason !== 'string') {
       throw new RuntimeError('hook_rejected', {
         'message': 'Hook terminate control requires a string reason.',
+        'details': {stage, index},
       });
     }
     return;
@@ -907,5 +1036,6 @@ function validateHookControl(control: unknown): asserts control is HookControl {
 
   throw new RuntimeError('hook_rejected', {
     'message': 'Hook control action must be "pause" or "terminate".',
+    'details': {stage, index},
   });
 }

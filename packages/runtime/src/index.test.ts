@@ -5,7 +5,12 @@ import {
   ClaimRunStartResult,
   DecisionProvider,
   ExecutorResult,
+  HookControl,
+  BeforeStepHookInput,
+  AfterStepHook,
+  AfterStepHookInput,
   RuntimeStepPacket,
+  RuntimeHostOptions,
   RunStartClaimReason,
   StateStore,
   StepExecutor,
@@ -20,6 +25,11 @@ describe('runtime ports', () => {
     const claimParams = {} as ClaimRunStartParams;
     const claimResult = {} as ClaimRunStartResult;
     const startReason: RunStartClaimReason = 'created';
+    const hookControl: HookControl = {'action': 'pause', 'reason': 'review'};
+    const beforeInput = {} as BeforeStepHookInput;
+    const afterInput = {} as AfterStepHookInput;
+    const afterHook: AfterStepHook = () => ({'control': {'action': 'terminate', 'runStatus': 'failed', 'reason': 'stop'}});
+    const hostOptions = {} as RuntimeHostOptions;
     const executorResult: ExecutorResult = {
       'run_id': 'run_001',
       'step_id': 'search_news',
@@ -44,6 +54,11 @@ describe('runtime ports', () => {
     expect(claimParams).toBeDefined();
     expect(claimResult).toBeDefined();
     expect(startReason).toBe('created');
+    expect(hookControl.action).toBe('pause');
+    expect(beforeInput).toBeDefined();
+    expect(afterInput).toBeDefined();
+    expect(afterHook).toBeDefined();
+    expect(hostOptions).toBeDefined();
     expect(CoreError).toBeDefined();
     expect(executorResult.artifacts?.stderr).toBe('/tmp/stderr.txt');
   });

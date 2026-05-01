@@ -504,6 +504,9 @@ v1-alpha 只开放 step 前后 hook。
 - 不能改写 `attempt`
 - 不能指定 outcome
 - 不能指定 next step
+- 不能返回 `transition`、`state` 等状态机字段
+
+`beforeStep` 返回值只允许包含 `inputs`、`config`、`control`。`inputs` 和 `config` 必须是递归 JSON-safe object，不允许函数、`Date`、`Map`、`Infinity`、`undefined` 或循环引用。Hook 收到的是 `packet`、`definition`、`state` 的隔离副本，原地修改不会影响 core 后续判定。
 
 ### 8.2 afterStep
 
@@ -528,7 +531,11 @@ v1-alpha 只开放 step 前后 hook。
 
 - 修改后的 result 仍必须通过 core 校验。
 - 如果 result 被 core 拒绝，则 hook 的暂停或终止请求不生效。
+- 只要 result 被 core 接纳，暂停或终止请求就可以生效；不要求 accepted status 是 `success`。
 - hook 不能选择 outcome 或 next step。
+- hook 不能返回 `transition`、`state` 等状态机字段。
+
+`afterStep` 返回值只允许包含 `result`、`control`。`result` patch 只允许包含 `status`、`output`、`artifacts`、`error`、`metrics`，不得包含 `outcome_id`、`next_step` 或其他状态机字段。Hook 收到的 `packet`、`definition`、`state` 和 `result` 也是隔离副本。
 
 ## 9. 执行时序
 
@@ -540,9 +547,14 @@ agent -> getRunState / getCurrentStep
 agent -> runReadyStep
 runtime -> buildStepPacket
 runtime -> beforeStep
+runtime -> max_run_secs check
 runtime -> executor registry dispatch
+runtime -> max_run_secs check
 runtime -> afterStep
+runtime -> max_run_secs check
 runtime -> applyStepResult
+runtime -> step_result_accepted event
+runtime -> max_run_secs check before hook control
 agent -> inspect state/result
 agent -> decideOutcome
 runtime -> applyDecision
@@ -658,9 +670,10 @@ SDK 应使用稳定错误码区分：
 4. 在 core 中加入 pause、resume、manual terminate 的纯函数。
 5. 在 runtime 中增加显式监管 API。
 6. 在 runtime 中加入 executor registry，用 `kind + name` 分发。
-7. 加入 `beforeStep` / `afterStep` hook 管线。
+7. 加入 `beforeStep` / `afterStep` hook 管线，并完成隔离、strict guard、deadline 优先级和事件语义收尾。
 8. 将当前 `ToolRegistryExecutor` 降级为 example/reference adapter，避免被理解为 SDK 固定执行模型。
 9. 用测试覆盖 SOP authoring、执行者注册、hook、pause/resume、retry、manual terminate。
+10. 下一项进入 `defineSop` Builder API，用类型化 authoring 降低手写 JSON definition 的成本。
 
 ## 14. 验收场景
 
