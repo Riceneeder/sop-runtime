@@ -36,8 +36,10 @@ definition -> validator -> core -> runtime
 
 ## 最小使用流程
 
-1. 编写 SOP definition，例如 [`examples/basic_sop_definition.json`](./examples/basic_sop_definition.json)，结构可参考 [`schemas/sop-definition.schema.json`](./schemas/sop-definition.schema.json)。
-2. 调用 `validateDefinition(definition)`，只接收 `ok === true` 的定义。
+1. 编写 SOP definition。有两种 authoring 方式：
+   - JSON authoring：使用 [`examples/basic_sop_definition.json`](./examples/basic_sop_definition.json) 作为模板，结构可参考 [`schemas/sop-definition.schema.json`](./schemas/sop-definition.schema.json)。
+   - TypeScript authoring：使用 `defineSop(...)` 获得类型约束的 authoring 辅助（来自 `@sop-runtime/definition`）。
+2. 调用 `validateDefinition(definition)`，只接收 `ok === true` 的定义。两种 authoring 方式都必须经过 `validateDefinition`。
 3. 通过 `host.registerExecutor(kind, name, handler)` 注册执行器处理函数，把 step packet 适配到本地命令、沙箱、工具或 agent。
 4. 创建 `RuntimeHost`，传入 store 和可选 decision provider。
 5. 调用 `startRun` 创建或复用 run，再调用 `runUntilComplete` 驱动到终止。
@@ -93,6 +95,7 @@ console.log(completed.final_output);
 ## 当前能做
 
 - 定义 SOP 的身份、输入 schema、全局策略、步骤图、执行器配置、重试策略、监督 outcome 和最终输出模板。
+- 通过 `defineSop` 获得 TypeScript 类型约束的 SOP authoring 辅助。
 - 提供 SOP definition 的结构层 JSON Schema，便于编辑器提示和基础格式校验。
 - 校验顶层结构、步骤引用、transition 和 outcome 的一致性。
 - 校验模板表达式中的 `run.input.*`、`steps.<step_id>.output.*`、`steps.<step_id>.artifacts.*` 引用。

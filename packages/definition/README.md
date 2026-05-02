@@ -8,11 +8,12 @@
 
 ## 包定位
 
-这个包提供三类能力：
+这个包提供四类能力：
 
 - SOP DSL 类型：例如 `SopDefinition`、`StepDefinition`、`ExecutorConfig`。
 - 运行时模型：例如 `RunState`、`StepResult`、`Decision`。
 - 表达式解析：例如 `parseExpressionTemplate`、`parseExpressionBody`、`ExpressionSyntaxError`。
+- 最小 Builder API：`defineSop`，提供类型约束的 SOP authoring 辅助。
 
 它本身不做校验；校验职责在 [`@sop-runtime/validator`](../validator/README.md)。
 
@@ -26,13 +27,59 @@
 - 执行结果类型：`StepResult`、`AcceptedStepResult`、`StepPacket`、`Decision`、`StepRun` 等
 - 常量集合：`RUN_STATUSES`、`RUN_PHASES`、`STEP_LIFECYCLES`、`EXECUTOR_RESULT_STATUSES`、`ACCEPTED_STEP_RESULT_STATUSES`、`RETRYABLE_STEP_RESULT_STATUSES`
 - 表达式解析能力：`parseExpressionTemplate`、`parseExpressionBody`、`ExpressionSyntaxError` 以及表达式 AST 类型
+- Builder API：`defineSop`，类型约束 identity 函数
 
 典型导入方式：
 
 ```ts
-import type {SopDefinition, RunState} from '@sop-runtime/definition';
-import {parseExpressionTemplate, RUN_STATUSES} from '@sop-runtime/definition';
+import {defineSop, parseExpressionTemplate, RUN_STATUSES} from '@sop-runtime/definition';
 ```
+
+### `defineSop` 使用说明
+
+```ts
+import {defineSop} from '@sop-runtime/definition';
+
+const definition = defineSop({
+  'sop_id': 'example',
+  'name': 'Example',
+  'version': '1.0.0',
+  'entry_step': 'step_a',
+  'input_schema': {'type': 'object', 'required': ['key'], 'properties': {'key': {'type': 'string'}}},
+  'policies': {
+    'cooldown_secs': 0,
+    'max_run_secs': 60,
+    'idempotency_key_template': 'ex:${run.input.key}',
+    'concurrency': {'mode': 'singleflight', 'key_template': 'ex:${run.input.key}'},
+  },
+  'steps': [{
+    'id': 'step_a',
+    'title': 'Step A',
+    'inputs': {'key': '${run.input.key}'},
+    'executor': {
+      'kind': 'tool', 'name': 'process',
+      'timeout_secs': 30, 'allow_network': false, 'env': {},
+      'resource_limits': {'max_output_bytes': 1024, 'max_artifacts': 0},
+    },
+    'output_schema': {},
+    'retry_policy': {'max_attempts': 1, 'backoff_secs': [], 'retry_on': []},
+    'supervision': {
+      'owner': 'main_agent',
+      'allowed_outcomes': [{'id': 'done', 'description': 'finish'}],
+      'default_outcome': 'done',
+    },
+    'transitions': {
+      'done': {'terminate': {'run_status': 'succeeded', 'reason': 'done'}},
+    },
+  }],
+  'final_output': {'key': '${steps.step_a.output.result}'},
+});
+```
+
+重要说明：
+- `defineSop` 返回普通 `SopDefinition` 对象，不做校验。
+- 使用者仍应调用 `validateDefinition` 进行准入检查。
+- 更多示例可参考 [`examples/basic_sop_definition.json`](../../examples/basic_sop_definition.json)。
 
 ## 核心概念
 
@@ -73,6 +120,7 @@ import {parseExpressionTemplate, RUN_STATUSES} from '@sop-runtime/definition';
 | [`src/execution.ts`](./src/execution.ts)           | 定义执行器请求/响应、监督决策、步骤运行记录等 execution-time 数据结构。 | `sop_definition.ts`、`json_value.ts`                                               | `run_state.ts`、`index.ts`                                         |
 | [`src/run_state.ts`](./src/run_state.ts)           | 定义整次运行的状态快照、历史事件和状态常量。                       | `execution.ts`、`json_value.ts`                                                    | `index.ts`、未来 runtime/core 包                                      |
 | [`src/expression.ts`](./src/expression.ts)         | 定义表达式 AST，并实现模板解析器和语法错误类型。                   | `json_value.ts`                                                                   | `index.ts`、validator 包                                            |
+| [`src/builder.ts`](./src/builder.ts)               | 最小 Builder API：`defineSop` 类型约束 identity。            | `sop_definition.ts`                                                              | `index.ts`、使用 TS authoring 的调用方                                      |
 
 ### 测试文件
 
@@ -123,9 +171,10 @@ index
 
 1. [`src/index.ts`](./src/index.ts)：先看包到底导出了什么
 2. [`src/sop_definition.ts`](./src/sop_definition.ts)：理解 SOP 定义层模型
-3. [`src/execution.ts`](./src/execution.ts)：理解执行和结果数据
-4. [`src/run_state.ts`](./src/run_state.ts)：理解整次运行状态
-5. [`src/expression.ts`](./src/expression.ts)：只有在你需要模板表达式时再读
+3. [`src/builder.ts`](./src/builder.ts)：理解 `defineSop` Builder API 的使用方式
+4. [`src/execution.ts`](./src/execution.ts)：理解执行和结果数据
+5. [`src/run_state.ts`](./src/run_state.ts)：理解整次运行状态
+6. [`src/expression.ts`](./src/expression.ts)：只有在你需要模板表达式时再读
 
 ### 如果你是仓库内开发者
 
@@ -133,14 +182,15 @@ index
 
 1. [`src/json_value.ts`](./src/json_value.ts)
 2. [`src/sop_definition.ts`](./src/sop_definition.ts)
-3. [`src/execution.ts`](./src/execution.ts)
-4. [`src/run_state.ts`](./src/run_state.ts)
-5. [`src/expression.ts`](./src/expression.ts)
-6. [`src/index.ts`](./src/index.ts)
-7. [`src/index.test.ts`](./src/index.test.ts)
-8. [`src/expression.test.ts`](./src/expression.test.ts)
+3. [`src/builder.ts`](./src/builder.ts)
+4. [`src/execution.ts`](./src/execution.ts)
+5. [`src/run_state.ts`](./src/run_state.ts)
+6. [`src/expression.ts`](./src/expression.ts)
+7. [`src/index.ts`](./src/index.ts)
+8. [`src/index.test.ts`](./src/index.test.ts)
+9. [`src/expression.test.ts`](./src/expression.test.ts)
 
-这样读的原因是：先理解最稳定的基础类型，再看 SOP 模型，再看运行时模型，最后再回头看入口聚合和测试覆盖。
+这样读的原因是：先理解最稳定的基础类型，再看 SOP 模型和 Builder API，再看运行时模型，最后再回头看入口聚合和测试覆盖。
 
 ## 测试文件说明
 

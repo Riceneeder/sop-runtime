@@ -95,11 +95,18 @@ console.log(completed.final_output);
 
 RuntimeHost 通过 `registerExecutor(kind, name, handler)` 注册执行器，`runReadyStep` 按 `packet.executor.kind + packet.executor.name` 查找并分发。未注册的 executor 会抛出 `RuntimeError('executor_not_registered')`。
 
-handler 接收 `{packet, definition, state, config}`，必须返回 `StepResult`，状态推进只允许通过 core `applyStepResult`。不允许 handler 绕过状态机直接修改持久化状态。
+handler 接收 `{packet, definition, state, config}`，其中：
+- `input.packet.executor.config` 是 packet 内的 executor 配置，保留 definition 中的原始形态（不作模板渲染）。
+- `input.config` 是 RuntimeHost 传入的 convenience config；如果 definition 未提供 config，`input.config` 为 `{}`。
+- SDK 不解析 `executor.config` 内的模板表达式；如果具体 adapter 需要在 config 内定义模板字段，由对应 handler 自行解析（例如调用 `evaluateExpressionTemplate`）。
+
+handler 必须返回 `StepResult`，状态推进只允许通过 core `applyStepResult`。不允许 handler 绕过状态机直接修改持久化状态。
 
 ### ToolRegistryExecutor（legacy）
 
 `ToolRegistryExecutor` 是遗留参考实现，实现 `StepExecutor` 接口用于向后兼容。它仅处理 `kind === 'sandbox_tool'` 的步骤。新代码应使用 `RuntimeHost.registerExecutor` 而非 `ToolRegistryExecutor`。
+
+当前保留 `ToolRegistryExecutor` 的公共导出，不在本任务中移除。
 
 ## Hook pipeline
 
