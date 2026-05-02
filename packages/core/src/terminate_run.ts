@@ -51,11 +51,10 @@ export function terminateRun(params: {
     });
   }
 
-  const isPaused = params.state.phase === 'paused';
   const hasCurrentStep = params.state.current_step_id !== null && params.state.current_attempt !== null;
 
   let steps = params.state.steps;
-  if (!isPaused && hasCurrentStep) {
+  if (hasCurrentStep) {
     const stepId = params.state.current_step_id as string;
     const stepState = steps[stepId];
     if (stepState !== undefined && (stepState.status === 'active' || stepState.status === 'waiting_decision')) {

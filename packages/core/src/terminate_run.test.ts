@@ -146,7 +146,7 @@ describe('terminateRun', () => {
     });
   });
 
-  test('terminates from paused phase without altering step state', () => {
+  test('terminates from paused phase and marks active step as failed', () => {
     const definition = buildDefinition();
     const state = createRun({
       definition,
@@ -170,7 +170,36 @@ describe('terminateRun', () => {
     expect(terminated.status).toBe('cancelled');
     expect(terminated.phase).toBe('terminated');
     expect(terminated.pause).toBeUndefined();
-    expect(terminated.steps.step_a?.status).toBe('active');
+    expect(terminated.steps.step_a?.status).toBe('failed');
+    expect(terminated.history.at(-1)).toEqual({
+      'kind': 'run_terminated',
+      'run_status': 'cancelled',
+      'reason': 'abandoned',
+      'at': '2026-04-20T12:10:00Z',
+    });
+  });
+
+  test('terminates from paused phase (paused from awaiting_decision) and marks step as failed', () => {
+    const definition = buildDefinition();
+    const state = runAwaitingDecision(definition);
+    const paused = pauseRun({
+      definition,
+      state,
+      'reason': 'inspect',
+    });
+
+    const terminated = terminateRun({
+      definition,
+      'state': paused,
+      'runStatus': 'cancelled',
+      'reason': 'abandoned',
+      'now': '2026-04-20T12:10:00Z',
+    });
+
+    expect(terminated.status).toBe('cancelled');
+    expect(terminated.phase).toBe('terminated');
+    expect(terminated.pause).toBeUndefined();
+    expect(terminated.steps.step_a?.status).toBe('failed');
     expect(terminated.history.at(-1)).toEqual({
       'kind': 'run_terminated',
       'run_status': 'cancelled',

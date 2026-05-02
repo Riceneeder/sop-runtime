@@ -1006,4 +1006,160 @@ describe('RuntimeHost', () => {
     });
   });
 
+  describe('decision rejection on paused runs', () => {
+    test('applyDecision throws when run is paused', async () => {
+      const {host} = buildHost();
+      registerDefaultExecutor(host);
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      await host.pauseRun({'definition': buildDefinition(), 'runId': started.state.run_id, 'reason': 'inspect'});
+
+      let error: unknown;
+      try {
+        await host.applyDecision({'definition': buildDefinition(), 'runId': started.state.run_id});
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toBeInstanceOf(RuntimeError);
+      expect((error as RuntimeError).code).toBe('invalid_runtime_state');
+    });
+
+    test('decideOutcome throws when run is paused', async () => {
+      const {host} = buildHost();
+      registerDefaultExecutor(host);
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+      await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+      await host.pauseRun({'definition': buildDefinition(), 'runId': started.state.run_id, 'reason': 'inspect'});
+
+      let error: unknown;
+      try {
+        await host.decideOutcome({
+          'definition': buildDefinition(),
+          'runId': started.state.run_id,
+          'outcomeId': 'done',
+        });
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toBeInstanceOf(RuntimeError);
+      expect((error as RuntimeError).code).toBe('invalid_runtime_state');
+    });
+
+    test('applyDecision on paused run does not call DecisionProvider', async () => {
+      let providerCalled = false;
+      const provider: DecisionProvider = {
+        async decide() {
+          providerCalled = true;
+          return {
+            'run_id': '',
+            'step_id': '',
+            'attempt': 1,
+            'outcome_id': 'done',
+          };
+        },
+      };
+      const definition = buildDefinition();
+      const store = new InMemoryStateStore();
+      const clock = new FixedClock('2026-04-20T12:00:00.000Z');
+      const host = new RuntimeHost({store, 'decisionProvider': provider, clock});
+      registerDefaultExecutor(host);
+
+      const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
+      await host.runReadyStep({definition, 'runId': started.state.run_id});
+      await host.pauseRun({definition, 'runId': started.state.run_id, 'reason': 'inspect'});
+
+      try { await host.applyDecision({definition, 'runId': started.state.run_id}); } catch { /* expected */ }
+
+      expect(providerCalled).toBe(false);
+    });
+  });
+
+  describe('dispatchExecutor enforcement', () => {
+    test('enforces timeout and returns timeout StepResult', async () => {
+      const definition = buildDefinition();
+      definition.steps[0]!.executor.timeout_secs = 1;
+      const {host} = buildHost();
+
+      host.registerExecutor('tool', 'default_tool', () => {
+        return new Promise<StepResult>(() => { /* never settles */ });
+      });
+
+      const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
+      const nextState = await host.runReadyStep({definition, 'runId': started.state.run_id});
+
+      expect(nextState.phase).toBe('awaiting_decision');
+      const accepted = nextState.accepted_results.step_a;
+      expect(accepted?.status).toBe('timeout');
+      expect(accepted?.error?.code).toBe('executor_timeout');
+    });
+
+    test('enforces max_output_bytes', async () => {
+      const definition = buildDefinition();
+      definition.steps[0]!.executor.resource_limits.max_output_bytes = 5;
+      const {host} = buildHost();
+
+      host.registerExecutor('tool', 'default_tool', (input) => ({
+        'run_id': input.packet.run_id,
+        'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt,
+        'status': 'success',
+        'output': {'data': 'x'.repeat(200)},
+      }));
+
+      const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
+      const nextState = await host.runReadyStep({definition, 'runId': started.state.run_id});
+
+      expect(nextState.phase).toBe('awaiting_decision');
+      const accepted = nextState.accepted_results.step_a;
+      expect(accepted?.status).toBe('sandbox_error');
+      expect(accepted?.error?.code).toBe('max_output_bytes_exceeded');
+    });
+
+    test('enforces max_artifacts', async () => {
+      const definition = buildDefinition();
+      definition.steps[0]!.executor.resource_limits.max_artifacts = 1;
+      const {host} = buildHost();
+
+      host.registerExecutor('tool', 'default_tool', (input) => ({
+        'run_id': input.packet.run_id,
+        'step_id': input.packet.step_id,
+        'attempt': input.packet.attempt,
+        'status': 'success',
+        'output': {'summary': 'ok'},
+        'artifacts': {'a': '/tmp/a', 'b': '/tmp/b'},
+      }));
+
+      const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
+      const nextState = await host.runReadyStep({definition, 'runId': started.state.run_id});
+
+      expect(nextState.phase).toBe('awaiting_decision');
+      const accepted = nextState.accepted_results.step_a;
+      expect(accepted?.status).toBe('sandbox_error');
+      expect(accepted?.error?.code).toBe('max_artifacts_exceeded');
+    });
+
+    test('propagates handler error through timeout wrapper', async () => {
+      const {host} = buildHost();
+
+      host.registerExecutor('tool', 'default_tool', () => {
+        throw new Error('handler crash');
+      });
+
+      const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+
+      let error: unknown;
+      try {
+        await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('handler crash');
+    });
+  });
+
 });

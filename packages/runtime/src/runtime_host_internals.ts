@@ -37,6 +37,7 @@ import { RuntimeError } from './runtime_error.js';
 import { StateStore } from './state_store.js';
 import { DecisionProvider } from './decision_provider.js';
 import { EventSink } from './event_sink.js';
+import { executeHandlerWithTimeout, enforceResourceLimits } from './executor_enforcer.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -275,7 +276,7 @@ export async function dispatchExecutor(
     });
   }
 
-  return handler({
+  const handlerInput: ExecutorHandlerInput = {
     packet: {
       'run_id': packet.run_id,
       'step_id': packet.step_id,
@@ -287,7 +288,40 @@ export async function dispatchExecutor(
     definition: structuredClone(definition) as SopDefinition,
     state: structuredClone(state) as RunState,
     'config': packet.executor.config ?? {},
-  });
+  };
+
+  const invocation = await executeHandlerWithTimeout(
+    () => handler(handlerInput),
+    packet.executor.timeout_secs,
+  );
+
+  if (invocation.kind === 'timeout') {
+    return {
+      'run_id': packet.run_id,
+      'step_id': packet.step_id,
+      'attempt': packet.attempt,
+      'status': 'timeout',
+      'error': {
+        'code': 'executor_timeout',
+        'message': `Executor ${packet.executor.kind}:${packet.executor.name} timed out after ${packet.executor.timeout_secs} seconds.`,
+        'details': {
+          'timeout_secs': packet.executor.timeout_secs,
+        },
+      },
+    };
+  }
+
+  if (invocation.kind === 'error') {
+    throw invocation.error;
+  }
+
+  return enforceResourceLimits(
+    invocation.result,
+    packet.executor.resource_limits,
+    packet.run_id,
+    packet.step_id,
+    packet.attempt,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -526,6 +560,13 @@ export async function decideOutcomeImpl(
   state = await enforceMaxRunSecs(definition, state, deps);
   if (state.phase === 'terminated') return state;
 
+  if (state.phase !== 'awaiting_decision') {
+    throw new RuntimeError('invalid_runtime_state', {
+      'message': 'Decisions can only be applied while the run is awaiting decision.',
+      'details': {'phase': state.phase},
+    });
+  }
+
   const acceptedResult = getCurrentAcceptedResult(state);
   const decision: Decision = {
     'run_id': state.run_id,
@@ -549,6 +590,13 @@ export async function applyDecisionImpl(
   assertDefinitionMatchesRun(definition, state);
   state = await enforceMaxRunSecs(definition, state, deps);
   if (state.phase === 'terminated') return state;
+
+  if (state.phase !== 'awaiting_decision') {
+    throw new RuntimeError('invalid_runtime_state', {
+      'message': 'Decisions can only be applied while the run is awaiting decision.',
+      'details': {'phase': state.phase},
+    });
+  }
 
   const acceptedResult = getCurrentAcceptedResult(state);
   const decision = decisionOverride ?? await deps.decisionProvider.decide({
