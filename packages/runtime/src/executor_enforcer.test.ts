@@ -191,6 +191,22 @@ describe('enforceResourceLimits', () => {
     expect(enforced).toBe(result);
   });
 
+  test('preserve policy enforces max_output_bytes on object with shared references', () => {
+    const shared = { 'data': 'x'.repeat(200) };
+    const result = buildSuccessResult({ 'output': { 'a': shared, 'b': shared } });
+    const enforced = enforceResourceLimits({
+      result,
+      resourceLimits: limits,
+      runId: 'run_001',
+      stepId: 'step_a',
+      attempt: 1,
+      'invalidPayloadPolicy': 'preserve',
+    });
+
+    expect(enforced.status).toBe('sandbox_error');
+    expect(enforced.error?.code).toBe('max_output_bytes_exceeded');
+  });
+
   test('preserve policy returns original result when output is an array', () => {
     const result = buildSuccessResult({ 'output': ['x'.repeat(200)] as never });
     const enforced = enforceResourceLimits({

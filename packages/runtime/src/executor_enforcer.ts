@@ -185,20 +185,27 @@ function isJsonSafeValue(value: unknown, seen: Set<object>): boolean {
   if (seen.has(value)) return false;
   seen.add(value);
 
+  let ok: boolean;
   if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i++) {
-      if (!isJsonSafeValue(value[i], seen)) return false;
+    ok = true;
+    for (let i = 0; i < value.length && ok; i++) {
+      ok = isJsonSafeValue(value[i], seen);
     }
-    return true;
+  } else if (isStrictPlainObject(value)) {
+    ok = true;
+    const entries = Object.entries(value);
+    for (const [, val] of entries) {
+      if (!isJsonSafeValue(val, seen)) {
+        ok = false;
+        break;
+      }
+    }
+  } else {
+    ok = false;
   }
 
-  if (!isStrictPlainObject(value)) return false;
-
-  const entries = Object.entries(value);
-  for (const [, val] of entries) {
-    if (!isJsonSafeValue(val, seen)) return false;
-  }
-  return true;
+  seen.delete(value);
+  return ok;
 }
 
 function isJsonSafeObject(value: unknown): value is Record<string, unknown> {
