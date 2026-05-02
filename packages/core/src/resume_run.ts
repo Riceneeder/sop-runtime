@@ -8,36 +8,9 @@ export function resumeRun(params: {
   now?: string;
 }): RunState {
   assertDefinitionMatchesRun(params);
+  assertResumable(params.state);
 
-  if (params.state.status !== 'running') {
-    throw new CoreError('invalid_state', {
-      'message': 'Only running runs can be resumed.',
-      'details': {
-        'status': params.state.status,
-        'phase': params.state.phase,
-      },
-    });
-  }
-
-  if (params.state.phase !== 'paused') {
-    throw new CoreError('invalid_state', {
-      'message': 'Only paused runs can be resumed.',
-      'details': {
-        'phase': params.state.phase,
-      },
-    });
-  }
-
-  if (params.state.pause === undefined) {
-    throw new CoreError('invalid_state', {
-      'message': 'Paused run is missing pause metadata.',
-      'details': {
-        'phase': params.state.phase,
-      },
-    });
-  }
-
-  const previousPhase = params.state.pause.previous_phase;
+  const previousPhase = params.state.pause!.previous_phase;
 
   return {
     ...params.state,
@@ -52,6 +25,27 @@ export function resumeRun(params: {
     ],
     'updated_at': params.now ?? params.state.updated_at,
   };
+}
+
+function assertResumable(state: RunState): void {
+  if (state.status !== 'running') {
+    throw new CoreError('invalid_state', {
+      'message': 'Only running runs can be resumed.',
+      'details': {'status': state.status, 'phase': state.phase},
+    });
+  }
+  if (state.phase !== 'paused') {
+    throw new CoreError('invalid_state', {
+      'message': 'Only paused runs can be resumed.',
+      'details': {'phase': state.phase},
+    });
+  }
+  if (state.pause === undefined) {
+    throw new CoreError('invalid_state', {
+      'message': 'Paused run is missing pause metadata.',
+      'details': {'phase': state.phase},
+    });
+  }
 }
 
 function buildRunResumedHistory(params: {

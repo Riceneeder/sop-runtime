@@ -70,14 +70,7 @@ export function applyNextStepTransition(params: {
   outcomeId: string;
   now?: string;
 }): RunState {
-  const nextStepState = params.state.steps[params.nextStepId];
-  if (nextStepState === undefined) {
-    throw new CoreError('invalid_state', {
-      'message': 'Transition points to a step that is missing in run state.',
-      'details': {'next_step': params.nextStepId},
-    });
-  }
-
+  const nextStepState = getRequiredStepState(params.state, params.nextStepId);
   const nextAttempt = nextStepState.attempt_count + 1;
   const historyWithDecision = [
     ...params.state.history,
@@ -191,6 +184,17 @@ function assertRetryAllowed(params: {
       },
     });
   }
+}
+
+function getRequiredStepState(state: RunState, stepId: string): StepState {
+  const stepState = state.steps[stepId];
+  if (stepState === undefined) {
+    throw new CoreError('invalid_state', {
+      'message': 'Transition points to a step that is missing in run state.',
+      'details': {'next_step': stepId},
+    });
+  }
+  return stepState;
 }
 
 function toCompletedStepLifecycle(status: AcceptedStepResultStatus): StepLifecycle {

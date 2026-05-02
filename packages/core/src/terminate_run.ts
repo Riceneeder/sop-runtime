@@ -10,6 +10,38 @@ export function terminateRun(params: {
   reason: string;
   now?: string;
 }): RunState {
+  assertCanTerminate(params);
+  const steps = buildTerminatedSteps(params.state);
+
+  return {
+    ...params.state,
+    'status': params.runStatus,
+    'phase': 'terminated',
+    'current_step_id': null,
+    'current_attempt': null,
+    steps,
+    'terminal': {
+      'run_status': params.runStatus,
+      'reason': params.reason,
+    },
+    'pause': undefined,
+    'history': [
+      ...params.state.history,
+      buildRunTerminatedHistory({
+        'run_status': params.runStatus,
+        'reason': params.reason,
+        'now': params.now,
+      }),
+    ],
+    'updated_at': params.now ?? params.state.updated_at,
+  };
+}
+
+function assertCanTerminate(params: {
+  definition: SopDefinition;
+  state: RunState;
+  runStatus: 'cancelled' | 'failed';
+}): void {
   if (params.definition.sop_id !== params.state.sop_id || params.definition.version !== params.state.sop_version) {
     throw new CoreError('invalid_state', {
       'message': 'Provided definition does not match the run SOP identity/version.',
@@ -50,45 +82,23 @@ export function terminateRun(params: {
       },
     });
   }
+}
 
-  const hasCurrentStep = params.state.current_step_id !== null && params.state.current_attempt !== null;
+function buildTerminatedSteps(state: RunState): RunState['steps'] {
+  const hasCurrentStep = state.current_step_id !== null && state.current_attempt !== null;
+  if (!hasCurrentStep) return state.steps;
 
-  let steps = params.state.steps;
-  if (hasCurrentStep) {
-    const stepId = params.state.current_step_id as string;
-    const stepState = steps[stepId];
-    if (stepState !== undefined && (stepState.status === 'active' || stepState.status === 'waiting_decision')) {
-      steps = {
-        ...steps,
-        [stepId]: {
-          ...stepState,
-          'status': 'failed',
-        },
-      };
-    }
-  }
+  const stepId = state.current_step_id as string;
+  const stepState = state.steps[stepId];
+  if (stepState === undefined) return state.steps;
+  if (stepState.status !== 'active' && stepState.status !== 'waiting_decision') return state.steps;
 
   return {
-    ...params.state,
-    'status': params.runStatus,
-    'phase': 'terminated',
-    'current_step_id': null,
-    'current_attempt': null,
-    steps,
-    'terminal': {
-      'run_status': params.runStatus,
-      'reason': params.reason,
+    ...state.steps,
+    [stepId]: {
+      ...stepState,
+      'status': 'failed' as const,
     },
-    'pause': undefined,
-    'history': [
-      ...params.state.history,
-      buildRunTerminatedHistory({
-        'run_status': params.runStatus,
-        'reason': params.reason,
-        'now': params.now,
-      }),
-    ],
-    'updated_at': params.now ?? params.state.updated_at,
   };
 }
 

@@ -51,6 +51,16 @@ export function validateDecisionContext(params: {
   currentStep: CurrentStepView;
   state: RunState;
 }): void {
+  validateDecisionMatchesCurrentStep(params);
+  validateAcceptedResultPresentAndMatch(params);
+  validateOutcomeIsAllowed(params.decision.outcome_id, params.currentStep);
+}
+
+function validateDecisionMatchesCurrentStep(params: {
+  decision: Decision;
+  currentStep: CurrentStepView;
+  state: RunState;
+}): void {
   const {decision, currentStep, state} = params;
 
   if (decision.run_id !== state.run_id) {
@@ -80,32 +90,40 @@ export function validateDecisionContext(params: {
       },
     });
   }
+}
 
-  const acceptedResult = state.accepted_results[currentStep.step_id];
+function validateAcceptedResultPresentAndMatch(params: {
+  currentStep: CurrentStepView;
+  state: RunState;
+}): NonNullable<RunState['accepted_results'][string]> {
+  const acceptedResult = params.state.accepted_results[params.currentStep.step_id];
   if (acceptedResult === undefined) {
     throw new CoreError('invalid_state', {
       'message': 'Current step is awaiting decision without an accepted result.',
-      'details': {'step_id': currentStep.step_id},
+      'details': {'step_id': params.currentStep.step_id},
     });
   }
-  if (acceptedResult.step_id !== currentStep.step_id || acceptedResult.attempt !== currentStep.attempt) {
+  if (acceptedResult.step_id !== params.currentStep.step_id || acceptedResult.attempt !== params.currentStep.attempt) {
     throw new CoreError('invalid_state', {
       'message': 'Accepted result does not match the current decision context.',
       'details': {
         'accepted_result_step_id': acceptedResult.step_id,
         'accepted_result_attempt': acceptedResult.attempt,
-        'current_step_id': currentStep.step_id,
-        'current_attempt': currentStep.attempt,
+        'current_step_id': params.currentStep.step_id,
+        'current_attempt': params.currentStep.attempt,
       },
     });
   }
+  return acceptedResult;
+}
 
+function validateOutcomeIsAllowed(outcomeId: string, currentStep: CurrentStepView): void {
   const allowedOutcomeIds = currentStep.step.supervision.allowed_outcomes.map((outcome) => outcome.id);
-  if (!allowedOutcomeIds.includes(decision.outcome_id)) {
+  if (!allowedOutcomeIds.includes(outcomeId)) {
     throw new CoreError('decision_rejected', {
       'message': 'Decision outcome is not allowed for the current step.',
       'details': {
-        'outcome_id': decision.outcome_id,
+        'outcome_id': outcomeId,
         'allowed_outcomes': allowedOutcomeIds,
       },
     });
