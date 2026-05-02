@@ -1,0 +1,114 @@
+import {
+  Decision,
+  JsonObject,
+  RunState,
+  SopDefinition,
+} from '@sop-runtime/definition';
+import {
+  applyDecision as applyCoreDecision,
+} from '@sop-runtime/core';
+import { RuntimeError } from './runtime_error.js';
+import { HostDeps } from './runtime_host_types.js';
+import { requireRun, assertDefinitionMatchesRun, getCurrentAcceptedResult } from './runtime_host_state.js';
+import { enforceMaxRunSecs } from './runtime_host_deadline.js';
+
+export async function decideOutcomeImpl(
+  deps: HostDeps,
+  definition: SopDefinition,
+  runId: string,
+  outcomeId: string,
+  reason?: string,
+  metadata?: JsonObject,
+): Promise<RunState> {
+  let state = await requireRun(deps.store, runId);
+  assertDefinitionMatchesRun(definition, state);
+  state = await enforceMaxRunSecs(definition, state, deps);
+  if (state.phase === 'terminated') return state;
+
+  if (state.phase !== 'awaiting_decision') {
+    throw new RuntimeError('invalid_runtime_state', {
+      'message': 'Decisions can only be applied while the run is awaiting decision.',
+      'details': {'phase': state.phase},
+    });
+  }
+
+  const acceptedResult = getCurrentAcceptedResult(state);
+  const decision: Decision = {
+    'run_id': state.run_id,
+    'step_id': acceptedResult.step_id,
+    'attempt': acceptedResult.attempt,
+    'outcome_id': outcomeId,
+    'reason': reason ?? 'decided by agent',
+    'metadata': metadata,
+  };
+
+  return applyDecisionAndEmit(deps, definition, state, decision);
+}
+
+export async function applyDecisionImpl(
+  deps: HostDeps,
+  definition: SopDefinition,
+  runId: string,
+  decisionOverride?: Decision,
+): Promise<RunState> {
+  let state = await requireRun(deps.store, runId);
+  assertDefinitionMatchesRun(definition, state);
+  state = await enforceMaxRunSecs(definition, state, deps);
+  if (state.phase === 'terminated') return state;
+
+  if (state.phase !== 'awaiting_decision') {
+    throw new RuntimeError('invalid_runtime_state', {
+      'message': 'Decisions can only be applied while the run is awaiting decision.',
+      'details': {'phase': state.phase},
+    });
+  }
+
+  const acceptedResult = getCurrentAcceptedResult(state);
+  const decision = decisionOverride ?? await deps.decisionProvider.decide({
+    'definition': definition,
+    state,
+    'accepted_result': acceptedResult,
+  });
+  state = await enforceMaxRunSecs(definition, state, deps);
+  if (state.phase === 'terminated') return state;
+
+  return applyDecisionAndEmit(deps, definition, state, decision);
+}
+
+async function applyDecisionAndEmit(
+  deps: HostDeps,
+  definition: SopDefinition,
+  state: RunState,
+  decision: Decision,
+): Promise<RunState> {
+  const nextState = applyCoreDecision({
+    'definition': definition,
+    state,
+    decision,
+    'now': deps.clock.now(),
+  });
+  await deps.store.saveRunState(nextState);
+  await deps.eventSink.emit({
+    kind: 'decision_applied',
+    'run_id': nextState.run_id,
+    at: deps.clock.now(),
+    details: {
+      'step_id': decision.step_id,
+      'attempt': decision.attempt,
+      'outcome_id': decision.outcome_id,
+    },
+  });
+  if (nextState.phase === 'terminated') {
+    await deps.eventSink.emit({
+      kind: 'run_terminated',
+      'run_id': nextState.run_id,
+      at: deps.clock.now(),
+      details: {
+        'run_status': nextState.terminal?.run_status ?? nextState.status,
+        'reason': nextState.terminal?.reason ?? 'terminated',
+      },
+    });
+  }
+
+  return nextState;
+}

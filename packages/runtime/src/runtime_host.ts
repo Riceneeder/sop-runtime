@@ -23,22 +23,20 @@ import {
 import {
   HostDeps,
   ExecutorHandler,
-  runReadyStepImpl,
+} from './runtime_host_types.js';
+import { runReadyStepImpl } from './run_ready_step.js';
+import {
   getRunStateImpl,
   getCurrentStepImpl,
-  decideOutcomeImpl,
-  applyDecisionImpl,
-  pauseRunImpl,
-  resumeRunImpl,
-  terminateRunImpl,
   renderPolicyKey,
   assertDefinitionMatchesRun,
   requireRun,
-  enforceMaxRunSecs,
-  buildCompletedResult,
-} from './runtime_host_internals.js';
+} from './runtime_host_state.js';
+import { decideOutcomeImpl, applyDecisionImpl } from './runtime_host_decision.js';
+import { pauseRunImpl, resumeRunImpl, terminateRunImpl } from './runtime_host_control.js';
+import { enforceMaxRunSecs, buildCompletedResult } from './runtime_host_deadline.js';
 
-export type {ExecutorHandler, ExecutorHandlerInput} from './runtime_host_internals.js';
+export type {ExecutorHandler, ExecutorHandlerInput} from './runtime_host_types.js';
 export type StartRunReason = RunStartClaimReason;
 
 export interface StartRunParams {
@@ -195,14 +193,14 @@ export class RuntimeHost {
   }
 
   async getRunState(params: {runId: string}): Promise<RunState> {
-    return getRunStateImpl(this.deps, params.runId);
+    return getRunStateImpl(this.deps.store, params.runId);
   }
 
   getCurrentStep(params: {
     definition: SopDefinition;
     runId: string;
   }): Promise<CurrentStepView | null> {
-    return getCurrentStepImpl(this.deps, params.definition, params.runId);
+    return getCurrentStepImpl(this.deps.store, params.definition, params.runId);
   }
 
   async decideOutcome(params: {
