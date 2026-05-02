@@ -501,14 +501,22 @@ export async function runReadyStepImpl(
   state = await enforceMaxRunSecs(definition, state, deps);
   if (state.phase === 'terminated') return state;
 
+  const enforcedResult = enforceResourceLimits(
+    currentResult,
+    packet.executor.resource_limits,
+    packet.run_id,
+    packet.step_id,
+    packet.attempt,
+  );
+
   const nextState = applyStepResult({
     'definition': definition,
     state,
-    'stepResult': currentResult,
+    'stepResult': enforcedResult,
     'now': deps.clock.now(),
   });
   await deps.store.saveRunState(nextState);
-  const acceptedResult = nextState.accepted_results[currentResult.step_id]!;
+  const acceptedResult = nextState.accepted_results[packet.step_id]!;
   await deps.eventSink.emit({
     kind: 'step_result_accepted',
     'run_id': nextState.run_id,

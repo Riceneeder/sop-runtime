@@ -102,6 +102,14 @@ handler 接收 `{packet, definition, state, config}`，其中：
 
 handler 必须返回 `StepResult`，状态推进只允许通过 core `applyStepResult`。不允许 handler 绕过状态机直接修改持久化状态。
 
+RuntimeHost 会对 executor 调用施加以下 enforcement：
+
+- **超时（timeout）**：RuntimeHost 用 `timeout_secs` 包裹 handler；超过时限会生成 `StepResult.status === 'timeout'`，`error.code === 'executor_timeout'`。这不是硬取消底层 handler，只是 runtime 不再等待该 attempt 作为成功结果推进。
+- **资源上限（resource_limits）**：RuntimeHost 在 handler 原始返回值上检查 `max_output_bytes` 和 `max_artifacts`，同时在 afterStep hook 改写后的最终 result 上再次检查，确保 hook 改写不会绕过资源约束。
+  - `max_output_bytes` 约束 success output 的 JSON 序列化字节数。
+  - `max_artifacts` 约束所有 status 的 artifacts 数量。
+  - 超限会收敛为 `StepResult.status === 'sandbox_error'`。
+
 ### ToolRegistryExecutor（legacy）
 
 `ToolRegistryExecutor` 是遗留参考实现，实现 `StepExecutor` 接口用于向后兼容。它仅处理 `kind === 'sandbox_tool'` 的步骤。新代码应使用 `RuntimeHost.registerExecutor` 而非 `ToolRegistryExecutor`。
@@ -271,6 +279,7 @@ RuntimeHost 在执行动作前会检查：
 | [`src/event_sink.ts`](./src/event_sink.ts) | 运行事件端口。 |
 | [`src/logger.ts`](./src/logger.ts) | 结构化日志端口。 |
 | [`src/runtime_error.ts`](./src/runtime_error.ts) | 运行层错误码和错误类。 |
+| [`src/executor_enforcer.ts`](./src/executor_enforcer.ts) | Executor timeout 包装与资源上限检查（max_output_bytes / max_artifacts）。 |
 
 ### 测试文件
 
