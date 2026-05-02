@@ -72,8 +72,7 @@ function buildDefinition(): SopDefinition {
 }
 
 describe('buildStepPacket', () => {
-  test('renders nested inputs and executor config expressions', () => {
-
+  test('renders nested inputs and passes executor config through unchanged', () => {
     const definition = buildDefinition();
     const state = createRun({
       definition,

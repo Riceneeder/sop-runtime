@@ -788,6 +788,27 @@ describe('RuntimeHost', () => {
     expect(eventSink.events.map((e) => e.kind)).toContain('run_terminated');
   });
 
+  test('terminateRun respects max_run_secs deadline over caller-provided status', async () => {
+    const clock = new FixedClock('2026-04-20T12:00:00.000Z');
+    const definition = buildDefinition({'max_run_secs': 1});
+    const {host} = buildHost({clock});
+    registerDefaultExecutor(host);
+
+    const started = await host.startRun({definition, 'input': {'company': 'Acme'}});
+
+    clock.setNow('2026-04-20T12:00:02.000Z');
+    const terminated = await host.terminateRun({
+      definition,
+      'runId': started.state.run_id,
+      'runStatus': 'cancelled',
+      'reason': 'operator cancelled',
+    });
+
+    expect(terminated.phase).toBe('terminated');
+    expect(terminated.status).toBe('failed');
+    expect(terminated.terminal).toEqual({'run_status': 'failed', 'reason': 'max_run_secs_exceeded'});
+  });
+
   test('runUntilComplete returns immediately when run is paused', async () => {
     const {host} = buildHost();
     registerDefaultExecutor(host);

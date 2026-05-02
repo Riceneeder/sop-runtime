@@ -12,6 +12,7 @@ import {
   STEP_LIFECYCLES,
   RunState,
   SopDefinition,
+  defineSop,
   parseExpressionBody,
   parseExpressionTemplate,
 } from './index.js';
@@ -172,5 +173,123 @@ describe('definition exports', () => {
   test('paused phase is included in RUN_PHASES', () => {
     expect(RUN_PHASES).toContain('paused');
     expect(RUN_PHASES).toEqual(['ready', 'awaiting_decision', 'paused', 'terminated']);
+  });
+
+  test('defineSop returns a plain SopDefinition object with all fields preserved', () => {
+    const definition = defineSop({
+      'sop_id': 'builder_test',
+      'name': 'Builder Test',
+      'version': '1.0.0',
+      'entry_step': 'step_a',
+      'input_schema': {'type': 'object'},
+      'policies': {
+        'cooldown_secs': 0,
+        'max_run_secs': 60,
+        'idempotency_key_template': 'test:${run.input.company}',
+        'concurrency': {
+          'mode': 'singleflight',
+          'key_template': 'test:${run.input.company}',
+        },
+      },
+      'steps': [
+        {
+          'id': 'step_a',
+          'title': 'Step A',
+          'inputs': {'company': '${run.input.company}'},
+          'executor': {
+            'kind': 'tool',
+            'name': 'web_search',
+            'config': {'query_template': '${company} news'},
+            'timeout_secs': 120,
+            'allow_network': true,
+            'env': {},
+            'resource_limits': {
+              'max_output_bytes': 1024,
+              'max_artifacts': 1,
+            },
+          },
+          'output_schema': {'type': 'object'},
+          'retry_policy': {
+            'max_attempts': 2,
+            'backoff_secs': [5],
+            'retry_on': ['timeout'],
+          },
+          'supervision': {
+            'owner': 'main_agent',
+            'allowed_outcomes': [{'id': 'continue', 'description': 'go'}],
+            'default_outcome': 'continue',
+          },
+          'transitions': {
+            'continue': {'next_step': 'step_b'},
+          },
+        },
+        {
+          'id': 'step_b',
+          'title': 'Step B',
+          'inputs': {},
+          'executor': {
+            'kind': 'shell',
+            'name': 'report',
+            'timeout_secs': 30,
+            'allow_network': false,
+            'env': {},
+            'resource_limits': {
+              'max_output_bytes': 256,
+              'max_artifacts': 0,
+            },
+          },
+          'output_schema': {},
+          'retry_policy': {
+            'max_attempts': 1,
+            'backoff_secs': [],
+            'retry_on': [],
+          },
+          'supervision': {
+            'owner': 'main_agent',
+            'allowed_outcomes': [{'id': 'done', 'description': 'finish'}],
+            'default_outcome': 'done',
+          },
+          'transitions': {
+            'done': {
+              'terminate': {
+                'run_status': 'succeeded',
+                'reason': 'complete',
+              },
+            },
+          },
+        },
+      ],
+      'final_output': {'summary': '${steps.step_a.output.result}'},
+    });
+
+    expect(definition.sop_id).toBe('builder_test');
+    expect(definition.steps.length).toBe(2);
+    expect(definition.steps[0]?.executor.kind).toBe('tool');
+    expect(definition.steps[0]?.executor.name).toBe('web_search');
+    expect(definition.steps[0]?.executor.config).toEqual({'query_template': '${company} news'});
+    expect(definition.steps[1]?.executor.config).toBeUndefined();
+    expect(definition.final_output).toEqual({'summary': '${steps.step_a.output.result}'});
+  });
+
+  test('defineSop output is a plain object, not a validated or transformed copy', () => {
+    const input = {
+      'sop_id': 'plain',
+      'name': 'Plain',
+      'version': '1.0.0',
+      'entry_step': 'a',
+      'input_schema': {},
+      'policies': {
+        'cooldown_secs': 0,
+        'max_run_secs': 60,
+        'idempotency_key_template': 'k',
+        'concurrency': {'mode': 'singleflight', 'key_template': 'k'},
+      },
+      'steps': [],
+      'final_output': {},
+    } satisfies SopDefinition;
+    const result = defineSop(input);
+
+    expect(result).toBe(input); // identity — no clone
+    expect(result.steps).toEqual([]);
   });
 });

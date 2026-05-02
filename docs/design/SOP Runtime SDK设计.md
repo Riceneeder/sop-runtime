@@ -291,10 +291,10 @@ v1-alpha 支持最小表达式能力：
 表达式可用于：
 
 - step `inputs`
-- executor `config`
-- executor path-like 或 command-like 字段，如果具体 adapter 需要
 - `final_output`
-- policy key template
+- policy key template（`idempotency_key_template`、`concurrency.key_template`）
+
+`executor.config` 是 handler-owned opaque data，SDK 不解释其中的模板语法。如果具体 adapter 需要在 config 内定义模板字段，由对应 handler 自行解析（例如调用 `evaluateExpressionTemplate` 或使用自己的占位符语法）。
 
 表达式不做条件判断、不执行函数副作用、不访问外部系统。
 

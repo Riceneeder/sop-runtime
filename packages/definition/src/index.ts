@@ -53,6 +53,7 @@ export {
   parseExpressionBody,
   parseExpressionTemplate,
 } from './expression.js';
+export {defineSop} from './builder.js';
 export type {
   CoalesceExpression,
   ExpressionLiteral,

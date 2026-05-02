@@ -77,8 +77,9 @@ export function validateExpressionDefinition(definition: SopDefinition): Diagnos
       visitTemplateValue(stepObj.inputs, joinPath('steps', stepIndex, 'inputs'), context, diagnostics);
     }
 
-    // Executor config is handler-owned opaque data — skip expression validation.
-    // Expressions embedded in config are resolved at runtime by renderJsonValueTemplates.
+    // Executor config is handler-owned opaque data — validator does not inspect it.
+    // Handlers / adapters that need template resolution in config fields should
+    // use evaluateExpressionTemplate themselves.
   });
 
   visitTemplateValue(definition.final_output, 'final_output', context, diagnostics, finalOutputOptions);
