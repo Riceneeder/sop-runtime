@@ -126,7 +126,7 @@ export class RuntimeHost {
   private readonly idGenerator: IdGenerator;
   private readonly logger: RuntimeLogger;
   private readonly eventSink: EventSink;
-  private readonly executors = new Map<string, ExecutorHandler>();
+  private readonly executors = new Map<string, Map<string, ExecutorHandler>>();
   private readonly beforeStepHooks: BeforeStepHook[];
   private readonly afterStepHooks: AfterStepHook[];
 
@@ -143,7 +143,12 @@ export class RuntimeHost {
 
   /** Registers an executor handler for a given kind + name pair. */
   registerExecutor(kind: string, name: string, handler: ExecutorHandler): void {
-    this.executors.set(`${kind}:${name}`, handler);
+    let inner = this.executors.get(kind);
+    if (inner === undefined) {
+      inner = new Map();
+      this.executors.set(kind, inner);
+    }
+    inner.set(name, handler);
   }
 
   async startRun(params: StartRunParams): Promise<StartRunResult> {
@@ -469,12 +474,16 @@ export class RuntimeHost {
     runId: string;
     reason: string;
   }): Promise<RunState> {
-    const state = await this.requireRun(params.runId);
+    let state = await this.requireRun(params.runId);
     assertDefinitionMatchesRun(params.definition, state);
+    state = await this.enforceMaxRunSecs(params.definition, state);
+    if (state.phase === 'terminated') {
+      return state;
+    }
 
     const paused = pauseRun({
       'definition': params.definition,
-      'state': state,
+      state,
       'reason': params.reason,
       'now': this.clock.now(),
     });
@@ -490,12 +499,16 @@ export class RuntimeHost {
     definition: SopDefinition;
     runId: string;
   }): Promise<RunState> {
-    const state = await this.requireRun(params.runId);
+    let state = await this.requireRun(params.runId);
     assertDefinitionMatchesRun(params.definition, state);
+    state = await this.enforceMaxRunSecs(params.definition, state);
+    if (state.phase === 'terminated') {
+      return state;
+    }
 
     const resumed = resumeRun({
       'definition': params.definition,
-      'state': state,
+      state,
       'now': this.clock.now(),
     });
     await this.saveState(resumed);
@@ -579,11 +592,11 @@ export class RuntimeHost {
     definition: SopDefinition,
     state: RunState,
   ): Promise<StepResult> {
-    const key = `${packet.executor.kind}:${packet.executor.name}`;
-    const handler = this.executors.get(key);
+    const inner = this.executors.get(packet.executor.kind);
+    const handler = inner?.get(packet.executor.name);
     if (handler === undefined) {
       throw new RuntimeError('executor_not_registered', {
-        'message': `No executor registered for ${key}.`,
+        'message': `No executor registered for ${packet.executor.kind}:${packet.executor.name}.`,
         'details': {
           'kind': packet.executor.kind,
           'name': packet.executor.name,
@@ -599,8 +612,8 @@ export class RuntimeHost {
         'inputs': packet.inputs,
         'executor': packet.executor,
       },
-      definition,
-      state,
+      definition: structuredClone(definition) as SopDefinition,
+      state: structuredClone(state) as RunState,
       'config': packet.executor.config ?? {},
     });
   }

@@ -100,7 +100,10 @@ export function getCurrentStep(params: {
     });
   }
 
-  const expectedStepStatus = params.state.phase === 'ready'
+  const stepRoutine = params.state.phase === 'paused'
+    ? params.state.pause?.previous_phase
+    : params.state.phase;
+  const expectedStepStatus = stepRoutine === 'ready'
     ? 'active'
     : 'waiting_decision';
   if (stepState.status !== expectedStepStatus) {
