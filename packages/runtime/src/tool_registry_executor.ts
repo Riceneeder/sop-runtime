@@ -1,4 +1,10 @@
-import {JsonObject, StepResult} from '@sop-runtime/definition';
+import {
+  isJsonSafeObject,
+  isStrictPlainObject,
+  isStringRecord,
+  JsonObject,
+  StepResult,
+} from '@sop-runtime/definition';
 import {StepExecutor, RuntimeStepPacket} from './step_executor.js';
 
 const UNSUPPORTED_EXECUTOR_KIND_ERROR_CODE = 'unsupported_executor_kind';
@@ -302,66 +308,4 @@ function toErrorMessage(error: unknown): string {
 function normalizeTimeoutMs(timeoutSecs: number): number {
   const timeoutMs = Math.max(0, timeoutSecs * 1000);
   return Math.min(timeoutMs, MAX_SET_TIMEOUT_MS);
-}
-
-function isJsonSafeObject(value: unknown): value is JsonObject {
-  return isStrictPlainObject(value) && isJsonSafeValue(value, new Set<object>());
-}
-
-function isStrictPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return false;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-
-function isJsonSafeValue(value: unknown, seen: Set<object>): boolean {
-  if (value === null) {
-    return true;
-  }
-  const valueType = typeof value;
-  if (valueType === 'string' || valueType === 'boolean') {
-    return true;
-  }
-  if (valueType === 'number') {
-    return Number.isFinite(value);
-  }
-  if (valueType !== 'object') {
-    return false;
-  }
-  const objectValue = value as object;
-  if (seen.has(objectValue)) {
-    return false;
-  }
-  seen.add(objectValue);
-  if (Array.isArray(value)) {
-    const areEntriesSafe = value.every((entry) => isJsonSafeValue(entry, seen));
-    seen.delete(objectValue);
-    return areEntriesSafe;
-  }
-  if (!isStrictPlainObject(value)) {
-    seen.delete(objectValue);
-    return false;
-  }
-  for (const entry of Object.values(value)) {
-    if (!isJsonSafeValue(entry, seen)) {
-      seen.delete(objectValue);
-      return false;
-    }
-  }
-  seen.delete(objectValue);
-  return true;
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  if (!isStrictPlainObject(value)) {
-    return false;
-  }
-  for (const entry of Object.values(value)) {
-    if (typeof entry !== 'string') {
-      return false;
-    }
-  }
-  return true;
 }

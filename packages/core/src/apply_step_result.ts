@@ -1,6 +1,9 @@
 import {
   AcceptedStepResult,
   EXECUTOR_RESULT_STATUSES,
+  isJsonSafeObject,
+  isStrictPlainObject,
+  isStringRecord,
   RunState,
   SopDefinition,
   StepError,
@@ -268,43 +271,6 @@ function buildStepResultAcceptedHistory(params: {
   }
 
   return entry;
-}
-
-function isStrictPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return false;
-  }
-
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-
-function isJsonSafeObject(value: unknown): value is Record<string, unknown> {
-  return isStrictPlainObject(value) && Object.values(value).every((item) => isJsonSafeValue(item));
-}
-
-function isJsonSafeValue(value: unknown): boolean {
-  if (value === null) {
-    return true;
-  }
-
-  if (typeof value === 'string' || typeof value === 'boolean') {
-    return true;
-  }
-
-  if (typeof value === 'number') {
-    return Number.isFinite(value);
-  }
-
-  if (Array.isArray(value)) {
-    return value.every((item) => isJsonSafeValue(item));
-  }
-
-  return isJsonSafeObject(value);
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return isStrictPlainObject(value) && Object.values(value).every((item) => typeof item === 'string');
 }
 
 function isValidStepError(value: unknown): value is StepError | null {

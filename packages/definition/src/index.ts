@@ -33,6 +33,12 @@ export type {
   StepResult,
   StepRun,
 } from './execution.js';
+export {
+  isJsonSafeObject,
+  isJsonSafeValue,
+  isStrictPlainObject,
+  isStringRecord,
+} from './json_value.js';
 export type {JsonArray, JsonObject, JsonPrimitive, JsonValue} from './json_value.js';
 export type {
   AllowedOutcome,
