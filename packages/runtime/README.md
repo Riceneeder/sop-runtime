@@ -109,6 +109,7 @@ RuntimeHost 会对 executor 调用施加以下 enforcement：
   - `max_output_bytes` 约束 success output 的 JSON 序列化字节数。
   - `max_artifacts` 约束所有 status 的 artifacts 数量。
   - 超限会收敛为 `StepResult.status === 'sandbox_error'`。
+  - afterStep 改写后的最终 result 仍必须通过 core 的 shape 校验；结构非法（如 `artifacts` 不是 string record、output 无法 JSON 序列化）的 result 不会被 resource enforcement 静默改写成 `sandbox_error`，而是由 core 的 `applyStepResult` 显式拒绝并抛出 `CoreError`。
 
 ### ToolRegistryExecutor（legacy）
 

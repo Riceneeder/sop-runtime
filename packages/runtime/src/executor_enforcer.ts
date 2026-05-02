@@ -10,8 +10,19 @@ const CODE_NON_SERIALIZABLE = 'non_serializable_output';
 const MAX_SET_TIMEOUT_MS = 2_147_483_647;
 
 // ---------------------------------------------------------------------------
-// Public API
+// Types
 // ---------------------------------------------------------------------------
+
+export type InvalidPayloadPolicy = 'convert_to_sandbox_error' | 'preserve';
+
+export interface EnforceResourceLimitsParams {
+  result: StepResult;
+  resourceLimits: { max_output_bytes: number; max_artifacts: number };
+  runId: string;
+  stepId: string;
+  attempt: number;
+  invalidPayloadPolicy?: InvalidPayloadPolicy;
+}
 
 export interface TimeoutResult {
   kind: 'timeout';
@@ -26,6 +37,10 @@ export interface HandlerResult {
   kind: 'result';
   result: StepResult;
 }
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 export async function executeHandlerWithTimeout(
   handler: () => Promise<StepResult> | StepResult,
@@ -50,9 +65,6 @@ export async function executeHandlerWithTimeout(
     clearTimeout(timeoutHandle);
   }
 
-  // Wall-clock check: a synchronous/blocking handler can prevent setTimeout
-  // from firing. If the handler took longer than the timeout, reject the result
-  // even though the race resolved with the handler outcome.
   if (outcome.kind === 'result') {
     const elapsedMs = Date.now() - startTime;
     if (elapsedMs >= timeoutMs) {
@@ -63,54 +75,68 @@ export async function executeHandlerWithTimeout(
   return outcome;
 }
 
-export function enforceResourceLimits(
+export function enforceResourceLimits(params: EnforceResourceLimitsParams): StepResult {
+  const policy = params.invalidPayloadPolicy ?? 'convert_to_sandbox_error';
+  const { result, resourceLimits, runId, stepId, attempt } = params;
+
+  const artifactResult = enforceArtifactLimit(result, resourceLimits, runId, stepId, attempt, policy);
+  if (artifactResult !== result) return artifactResult;
+
+  if (result.status !== 'success') return result;
+
+  return enforceOutputLimit(result, resourceLimits, runId, stepId, attempt, policy);
+}
+
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
+
+function enforceArtifactLimit(
   result: StepResult,
   resourceLimits: { max_output_bytes: number; max_artifacts: number },
   runId: string,
   stepId: string,
   attempt: number,
+  policy: InvalidPayloadPolicy,
 ): StepResult {
-  // Enforce artifact limits on all statuses — failing attempts still persist
-  // artifacts via applyStepResult, so the ceiling must apply regardless.
-  const artifactCount = Object.keys(result.artifacts ?? {}).length;
-  if (artifactCount > resourceLimits.max_artifacts) {
-    return {
-      'run_id': runId,
-      'step_id': stepId,
-      'attempt': attempt,
-      'status': 'sandbox_error',
-      'error': {
-        'code': CODE_ARTIFACT_COUNT,
-        'message': 'Step artifacts exceed max_artifacts.',
-        'details': {
-          'artifact_count': artifactCount,
-          'max_artifacts': resourceLimits.max_artifacts,
-        },
-      },
-    };
-  }
+  const artifacts = result.artifacts;
 
-  if (result.status !== 'success') {
+  if (policy === 'preserve' && artifacts !== undefined && !isStringRecord(artifacts)) {
     return result;
   }
 
-  const output = result.output ?? {};
+  const artifactCount = Object.keys(artifacts ?? {}).length;
+  if (artifactCount <= resourceLimits.max_artifacts) return result;
 
-  const outputSize = computeJsonUtf8Size(output);
-  if (outputSize === null) {
-    return {
-      'run_id': runId,
-      'step_id': stepId,
-      'attempt': attempt,
-      'status': 'sandbox_error',
-      'error': {
-        'code': CODE_NON_SERIALIZABLE,
-        'message': 'Step output could not be serialized to JSON.',
+  return {
+    'run_id': runId,
+    'step_id': stepId,
+    'attempt': attempt,
+    'status': 'sandbox_error',
+    'error': {
+      'code': CODE_ARTIFACT_COUNT,
+      'message': 'Step artifacts exceed max_artifacts.',
+      'details': {
+        'artifact_count': artifactCount,
+        'max_artifacts': resourceLimits.max_artifacts,
       },
-    };
-  }
+    },
+  };
+}
 
-  if (outputSize > resourceLimits.max_output_bytes) {
+function enforceOutputLimit(
+  result: StepResult,
+  resourceLimits: { max_output_bytes: number; max_artifacts: number },
+  runId: string,
+  stepId: string,
+  attempt: number,
+  policy: InvalidPayloadPolicy,
+): StepResult {
+  const outputSize = computeJsonUtf8Size(result.output ?? {});
+
+  if (outputSize !== null) {
+    if (outputSize <= resourceLimits.max_output_bytes) return result;
+
     return {
       'run_id': runId,
       'step_id': stepId,
@@ -127,12 +153,24 @@ export function enforceResourceLimits(
     };
   }
 
-  return result;
+  if (policy === 'preserve') return result;
+
+  return {
+    'run_id': runId,
+    'step_id': stepId,
+    'attempt': attempt,
+    'status': 'sandbox_error',
+    'error': {
+      'code': CODE_NON_SERIALIZABLE,
+      'message': 'Step output could not be serialized to JSON.',
+    },
+  };
 }
 
-// ---------------------------------------------------------------------------
-// Module-private helpers
-// ---------------------------------------------------------------------------
+function isStringRecord(value: unknown): value is Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  return Object.values(value).every((v) => typeof v === 'string');
+}
 
 function computeJsonUtf8Size(value: JsonObject): number | null {
   try {

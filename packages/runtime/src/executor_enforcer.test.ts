@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { StepResult } from '@sop-runtime/definition';
-import { executeHandlerWithTimeout, enforceResourceLimits } from './executor_enforcer.js';
+import {
+  executeHandlerWithTimeout,
+  enforceResourceLimits,
+  EnforceResourceLimitsParams,
+} from './executor_enforcer.js';
 
 function buildSuccessResult(overrides: Partial<StepResult> = {}): StepResult {
   return {
@@ -12,6 +16,10 @@ function buildSuccessResult(overrides: Partial<StepResult> = {}): StepResult {
     'artifacts': { 'report': '/tmp/report.md' },
     ...overrides,
   };
+}
+
+function enforce(params: Omit<EnforceResourceLimitsParams, 'invalidPayloadPolicy'>): StepResult {
+  return enforceResourceLimits(params);
 }
 
 describe('executeHandlerWithTimeout', () => {
@@ -41,9 +49,6 @@ describe('executeHandlerWithTimeout', () => {
   });
 
   test('rejects synchronous result when wall-clock exceeds timeout', async () => {
-    // timeoutSecs=0 → timeoutMs=0. A sync handler returns in the same tick
-    // before setTimeout(fn,0) can fire, so the race gives us 'result'. The
-    // wall-clock check then overrides it to 'timeout' because elapsedMs > 0.
     const result = buildSuccessResult();
     const outcome = await executeHandlerWithTimeout(() => result, 0);
 
@@ -59,7 +64,7 @@ describe('enforceResourceLimits', () => {
       'status': 'tool_error',
       'artifacts': { 'a': '/tmp/a' },
     });
-    const enforced = enforceResourceLimits(result, limits, 'run_001', 'step_a', 1);
+    const enforced = enforce({ result, resourceLimits: limits, runId: 'run_001', stepId: 'step_a', attempt: 1 });
 
     expect(enforced).toBe(result);
   });
@@ -69,7 +74,7 @@ describe('enforceResourceLimits', () => {
       'status': 'tool_error',
       'artifacts': { 'a': '/tmp/a', 'b': '/tmp/b', 'c': '/tmp/c' },
     });
-    const enforced = enforceResourceLimits(result, limits, 'run_001', 'step_a', 1);
+    const enforced = enforce({ result, resourceLimits: limits, runId: 'run_001', stepId: 'step_a', attempt: 1 });
 
     expect(enforced.status).toBe('sandbox_error');
     expect(enforced.error?.code).toBe('max_artifacts_exceeded');
@@ -77,7 +82,7 @@ describe('enforceResourceLimits', () => {
 
   test('returns sandbox_error when output exceeds max_output_bytes', () => {
     const result = buildSuccessResult({ 'output': { 'data': 'x'.repeat(200) } });
-    const enforced = enforceResourceLimits(result, limits, 'run_001', 'step_a', 1);
+    const enforced = enforce({ result, resourceLimits: limits, runId: 'run_001', stepId: 'step_a', attempt: 1 });
 
     expect(enforced.status).toBe('sandbox_error');
     expect(enforced.error?.code).toBe('max_output_bytes_exceeded');
@@ -87,20 +92,17 @@ describe('enforceResourceLimits', () => {
     const result = buildSuccessResult({
       'artifacts': { 'a': '/tmp/a', 'b': '/tmp/b', 'c': '/tmp/c' },
     });
-    const enforced = enforceResourceLimits(result, limits, 'run_001', 'step_a', 1);
+    const enforced = enforce({ result, resourceLimits: limits, runId: 'run_001', stepId: 'step_a', attempt: 1 });
 
     expect(enforced.status).toBe('sandbox_error');
     expect(enforced.error?.code).toBe('max_artifacts_exceeded');
   });
 
-  test('returns sandbox_error when output is not JSON-serializable', () => {
+  test('returns sandbox_error when output is not JSON-serializable (default policy)', () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
-    // BigInt is not JSON-serializable and avoids type issues with circular refs
-    const nonSerializable: Record<string, unknown> = {};
-    nonSerializable.self = nonSerializable;
-    const result = buildSuccessResult({ 'output': nonSerializable as never });
-    const enforced = enforceResourceLimits(result, limits, 'run_001', 'step_a', 1);
+    const result = buildSuccessResult({ 'output': circular as never });
+    const enforced = enforce({ result, resourceLimits: limits, runId: 'run_001', stepId: 'step_a', attempt: 1 });
 
     expect(enforced.status).toBe('sandbox_error');
     expect(enforced.error?.code).toBe('non_serializable_output');
@@ -108,8 +110,70 @@ describe('enforceResourceLimits', () => {
 
   test('passes through when within limits', () => {
     const result = buildSuccessResult();
-    const enforced = enforceResourceLimits(result, limits, 'run_001', 'step_a', 1);
+    const enforced = enforce({ result, resourceLimits: limits, runId: 'run_001', stepId: 'step_a', attempt: 1 });
 
     expect(enforced).toBe(result);
+  });
+
+  test('preserve policy returns original result when artifacts is not a string record', () => {
+    const result = buildSuccessResult({ 'artifacts': ['a', 'b', 'c'] as never });
+    const enforced = enforceResourceLimits({
+      result,
+      resourceLimits: limits,
+      runId: 'run_001',
+      stepId: 'step_a',
+      attempt: 1,
+      'invalidPayloadPolicy': 'preserve',
+    });
+
+    expect(enforced).toBe(result);
+  });
+
+  test('preserve policy returns original result when output is not JSON-serializable', () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const result = buildSuccessResult({ 'output': circular as never });
+    const enforced = enforceResourceLimits({
+      result,
+      resourceLimits: limits,
+      runId: 'run_001',
+      stepId: 'step_a',
+      attempt: 1,
+      'invalidPayloadPolicy': 'preserve',
+    });
+
+    expect(enforced).toBe(result);
+  });
+
+  test('preserve policy still enforces max_artifacts on valid string records', () => {
+    const result = buildSuccessResult({
+      'artifacts': { 'a': '/tmp/a', 'b': '/tmp/b', 'c': '/tmp/c' },
+    });
+    const enforced = enforceResourceLimits({
+      result,
+      resourceLimits: limits,
+      runId: 'run_001',
+      stepId: 'step_a',
+      attempt: 1,
+      'invalidPayloadPolicy': 'preserve',
+    });
+
+    expect(enforced.status).toBe('sandbox_error');
+    expect(enforced.error?.code).toBe('max_artifacts_exceeded');
+  });
+
+  test('preserve policy still enforces max_output_bytes on valid output', () => {
+    const result = buildSuccessResult({ 'output': { 'data': 'x'.repeat(200) } });
+    const enforced = enforceResourceLimits({
+      result,
+      resourceLimits: limits,
+      runId: 'run_001',
+      stepId: 'step_a',
+      attempt: 1,
+      'invalidPayloadPolicy': 'preserve',
+    });
+
+    expect(enforced.status).toBe('sandbox_error');
+    expect(enforced.error?.code).toBe('max_output_bytes_exceeded');
   });
 });

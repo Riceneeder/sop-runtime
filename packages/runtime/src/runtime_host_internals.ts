@@ -315,13 +315,13 @@ export async function dispatchExecutor(
     throw invocation.error;
   }
 
-  return enforceResourceLimits(
-    invocation.result,
-    packet.executor.resource_limits,
-    packet.run_id,
-    packet.step_id,
-    packet.attempt,
-  );
+  return enforceResourceLimits({
+    'result': invocation.result,
+    'resourceLimits': packet.executor.resource_limits,
+    'runId': packet.run_id,
+    'stepId': packet.step_id,
+    'attempt': packet.attempt,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -501,13 +501,17 @@ export async function runReadyStepImpl(
   state = await enforceMaxRunSecs(definition, state, deps);
   if (state.phase === 'terminated') return state;
 
-  const enforcedResult = enforceResourceLimits(
-    currentResult,
-    packet.executor.resource_limits,
-    packet.run_id,
-    packet.step_id,
-    packet.attempt,
-  );
+  const enforcedResult = enforceResourceLimits({
+    'result': currentResult,
+    'resourceLimits': packet.executor.resource_limits,
+    'runId': packet.run_id,
+    'stepId': packet.step_id,
+    'attempt': packet.attempt,
+    'invalidPayloadPolicy': 'preserve',
+  });
+
+  state = await enforceMaxRunSecs(definition, state, deps);
+  if (state.phase === 'terminated') return state;
 
   const nextState = applyStepResult({
     'definition': definition,

@@ -877,4 +877,76 @@ describe('hook pipeline', () => {
     expect(state.status).toBe('failed');
     expect(state.terminal?.reason).toBe('second hook terminate');
   });
+
+  test('afterStep non-record artifacts with preserve policy throws CoreError (not sandbox_error)', async () => {
+    const store = new InMemoryStateStore();
+    const definition = buildDefinition();
+    definition.steps[0]!.executor.resource_limits.max_artifacts = 1;
+    const host = new RuntimeHost({
+      store,
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+      'hooks': {
+        'afterStep': [(() => {
+          return {'result': {'artifacts': ['a', 'b']}};
+        }) as unknown as AfterStepHook],
+      },
+    });
+    host.registerExecutor('tool', 'default_tool', (input) => ({
+      'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+      'attempt': input.packet.attempt, 'status': 'success',
+      'output': {'summary': 'ok'},
+    }));
+
+    const started = await host.startRun({'definition': definition, 'input': {'company': 'Acme'}});
+
+    let caught: unknown;
+    try {
+      await host.runReadyStep({'definition': definition, 'runId': started.state.run_id});
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const reloaded = await store.loadRun(started.state.run_id);
+    expect(reloaded?.accepted_results.step_a).toBeUndefined();
+  });
+
+  test('afterStep non-JSON-safe output with preserve policy throws error (not sandbox_error)', async () => {
+    const store = new InMemoryStateStore();
+    const definition = buildDefinition();
+    definition.steps[0]!.executor.resource_limits.max_output_bytes = 5000;
+    const host = new RuntimeHost({
+      store,
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+      'hooks': {
+        'afterStep': [(() => {
+          const circular: Record<string, unknown> = {};
+          circular.self = circular;
+          return {'result': {'output': circular}};
+        }) as unknown as AfterStepHook],
+      },
+    });
+    host.registerExecutor('tool', 'default_tool', (input) => ({
+      'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+      'attempt': input.packet.attempt, 'status': 'success',
+      'output': {'summary': 'ok'},
+    }));
+
+    const started = await host.startRun({'definition': definition, 'input': {'company': 'Acme'}});
+
+    let caught: unknown;
+    try {
+      await host.runReadyStep({'definition': definition, 'runId': started.state.run_id});
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const reloaded = await store.loadRun(started.state.run_id);
+    expect(reloaded?.accepted_results.step_a).toBeUndefined();
+  });
 });
