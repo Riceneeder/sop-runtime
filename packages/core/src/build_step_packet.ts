@@ -61,7 +61,7 @@ export function buildStepPacket(params: {
     'step_id': currentStep.step.id,
     'attempt': currentStep.attempt,
     'inputs': renderedInputs,
-    'executor': currentStep.step.executor,
+    'executor': structuredClone(currentStep.step.executor),
     'output_schema': currentStep.step.output_schema,
   };
 }

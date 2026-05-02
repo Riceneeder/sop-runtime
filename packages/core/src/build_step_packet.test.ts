@@ -190,4 +190,25 @@ describe('buildStepPacket', () => {
     expect(error).toBeInstanceOf(CoreError);
     expect((error as CoreError).code).toBe('invalid_state');
   });
+
+  test('isolates the packet executor from the original definition', () => {
+    const definition = buildDefinition();
+    const state = createRun({
+      definition,
+      'input': {'company': 'Acme'},
+      'runId': 'run_001',
+    });
+    const packet = buildStepPacket({definition, state});
+
+    // Simulate the mutation that runtime_host applies via beforeStep hooks.
+    (packet.executor as { config?: Record<string, unknown> }).config = {
+      'mutated': true,
+    };
+
+    // The original definition must be unaffected.
+    expect(definition.steps[0]!.executor.config).toEqual({
+      'command_template': 'Search ${run.input.company}',
+      'path': '${run.input.workspace}',
+    });
+  });
 });
