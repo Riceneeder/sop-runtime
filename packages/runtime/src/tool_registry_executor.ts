@@ -71,10 +71,18 @@ export class ToolRegistryExecutor implements StepExecutor {
       });
     }
 
-    const commandTemplate = typeof packet.executor.config?.command_template === 'string'
-      ? packet.executor.config.command_template
-      : '';
-    const command = renderCommandTemplate(commandTemplate, packet.inputs);
+    if (typeof packet.executor.config?.command_template !== 'string') {
+      return this.buildErrorResult(packet, {
+        'status': 'tool_error',
+        'code': INVALID_HANDLER_OUTPUT_ERROR_CODE,
+        'message': `Tool ${toolName} is missing a valid command_template.`,
+        'details': {
+          'tool': toolName,
+          'command_template_type': typeof packet.executor.config?.command_template,
+        },
+      });
+    }
+    const command = renderCommandTemplate(packet.executor.config.command_template, packet.inputs);
     const invocation = await this.executeWithTimeout(() => handler({
       'run_id': packet.run_id,
       'step_id': packet.step_id,

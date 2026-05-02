@@ -50,6 +50,7 @@ export interface ExecutorHandlerInput {
     step_id: string;
     attempt: number;
     inputs: JsonObject;
+    output_schema?: JsonObject;
     executor: {
       kind: string;
       name: string;
@@ -290,15 +291,28 @@ export class RuntimeHost {
 
     // --- afterStep hooks ---
     let afterControl: HookControl | null = null;
-    let currentResult: StepResult = structuredClone(result) as StepResult;
+    let currentResult: StepResult = result;
 
     for (let i = 0; i < this.afterStepHooks.length; i += 1) {
       const hook = this.afterStepHooks[i]!;
+      let clonedResult: StepResult;
+      try {
+        clonedResult = structuredClone(currentResult) as StepResult;
+      } catch (err: unknown) {
+        throw new RuntimeError('hook_rejected', {
+          'message': 'afterStep hook received a non-structured-cloneable step result.',
+          'details': {
+            'stage': 'afterStep',
+            'index': i,
+            'error': err instanceof Error ? err.message : String(err),
+          },
+        });
+      }
       let hookResult;
       try {
         hookResult = hook({
           'packet': clonePacketForHook(packet, packet.inputs, packet.executor.config),
-          'result': structuredClone(currentResult) as StepResult,
+          'result': clonedResult,
           'definition': structuredClone(params.definition) as SopDefinition,
           state: structuredClone(state) as RunState,
         });
@@ -610,6 +624,7 @@ export class RuntimeHost {
         'step_id': packet.step_id,
         'attempt': packet.attempt,
         'inputs': packet.inputs,
+        'output_schema': packet.output_schema !== undefined ? structuredClone(packet.output_schema) : undefined,
         'executor': packet.executor,
       },
       definition: structuredClone(definition) as SopDefinition,
