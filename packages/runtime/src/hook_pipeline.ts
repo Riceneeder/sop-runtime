@@ -81,7 +81,7 @@ export function clonePacketForHook(
     'executor': {
       'kind': packet.executor.kind,
       'name': packet.executor.name,
-      ...(config === undefined ? {} : {'config': config}),
+      'config': config,
       'timeout_secs': packet.executor.timeout_secs,
       'allow_network': packet.executor.allow_network,
       'env': packet.executor.env,
@@ -179,21 +179,25 @@ function isJsonSafeValue(value: unknown, seen: Set<object>): boolean {
   }
 
   if (Array.isArray(value)) {
-    if (seen.has(value)) {
-      return false;
-    }
-    seen.add(value);
-    for (let i = 0; i < value.length; i += 1) {
-      if (!Object.prototype.hasOwnProperty.call(value, i) || !isJsonSafeValue(value[i], seen)) {
-        seen.delete(value);
-        return false;
-      }
-    }
-    seen.delete(value);
-    return true;
+    return isJsonSafeArray(value, seen);
   }
 
   return isJsonSafeObject(value, seen);
+}
+
+function isJsonSafeArray(arr: unknown[], seen: Set<object>): boolean {
+  if (seen.has(arr)) {
+    return false;
+  }
+  seen.add(arr);
+  for (let i = 0; i < arr.length; i += 1) {
+    if (!Object.prototype.hasOwnProperty.call(arr, i) || !isJsonSafeValue(arr[i], seen)) {
+      seen.delete(arr);
+      return false;
+    }
+  }
+  seen.delete(arr);
+  return true;
 }
 
 function isStrictPlainObject(value: unknown): value is Record<string, unknown> {
