@@ -25,6 +25,8 @@ export async function dispatchExecutor(
     });
   }
 
+  const resourceLimits = structuredClone(packet.executor.resource_limits);
+
   const invocation = await executeHandlerWithTimeout(
     () => handler(buildHandlerInput(packet, definition, state)),
     packet.executor.timeout_secs,
@@ -40,7 +42,7 @@ export async function dispatchExecutor(
 
   return enforceResourceLimits({
     'result': invocation.result,
-    'resourceLimits': packet.executor.resource_limits,
+    'resourceLimits': resourceLimits,
     'runId': packet.run_id,
     'stepId': packet.step_id,
     'attempt': packet.attempt,
@@ -52,18 +54,19 @@ function buildHandlerInput(
   definition: SopDefinition,
   state: RunState,
 ): ExecutorHandlerInput {
+  const clonedExecutor = structuredClone(packet.executor);
   return {
     packet: {
       'run_id': packet.run_id,
       'step_id': packet.step_id,
       'attempt': packet.attempt,
-      'inputs': packet.inputs,
+      'inputs': structuredClone(packet.inputs),
       'output_schema': packet.output_schema !== undefined ? structuredClone(packet.output_schema) : undefined,
-      'executor': packet.executor,
+      'executor': clonedExecutor,
     },
     definition: structuredClone(definition) as SopDefinition,
     state: structuredClone(state) as RunState,
-    'config': packet.executor.config ?? {},
+    'config': clonedExecutor.config ?? {},
   };
 }
 

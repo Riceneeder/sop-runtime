@@ -100,6 +100,28 @@ function resolveStepDefinition(params: {
   return step;
 }
 
+function getExpectedStepStatus(state: RunState): StepState['status'] {
+  if (state.phase === 'ready') return 'active';
+  if (state.phase === 'awaiting_decision') return 'waiting_decision';
+  if (state.phase === 'paused') {
+    if (state.pause?.previous_phase === 'ready') return 'active';
+    if (state.pause?.previous_phase === 'awaiting_decision') return 'waiting_decision';
+    throw new CoreError('invalid_state', {
+      'message': 'Paused run must preserve the previous phase.',
+      'details': {
+        'phase': state.phase,
+        'pause': state.pause ?? null,
+      },
+    });
+  }
+  throw new CoreError('invalid_state', {
+    'message': 'Cannot determine expected step status for current run phase.',
+    'details': {
+      'phase': state.phase,
+    },
+  });
+}
+
 function resolveStepState(state: RunState, step: StepDefinition): StepState {
   const stepState = state.steps[step.id];
   if (!stepState) {
@@ -121,9 +143,7 @@ function resolveStepState(state: RunState, step: StepDefinition): StepState {
     });
   }
 
-  const expectedStepStatus = state.phase === 'ready'
-    ? 'active'
-    : 'waiting_decision';
+  const expectedStepStatus = getExpectedStepStatus(state);
   if (stepState.status !== expectedStepStatus) {
     throw new CoreError('invalid_state', {
       'message': 'Current step lifecycle is inconsistent with run phase.',

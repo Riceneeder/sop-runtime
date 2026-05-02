@@ -107,6 +107,7 @@ export async function runAfterStepHooks(
     if (hookResult === undefined || hookResult === null) continue;
 
     if (hookResult.control !== undefined) {
+      validateHookControl(hookResult.control, 'afterStep', i);
       control = hookResult.control as HookControl;
     }
     if (hookResult.result !== undefined) {
