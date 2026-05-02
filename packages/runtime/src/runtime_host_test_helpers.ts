@@ -1,5 +1,5 @@
-import {expect} from 'bun:test';
-import {Decision, JsonObject, SopDefinition} from '@sop-runtime/definition';
+import { expect } from 'bun:test';
+import { Decision, JsonObject, SopDefinition } from '@sop-runtime/definition';
 import {
   DecisionProvider,
   DefaultDecisionProvider,
@@ -76,7 +76,7 @@ export function recordingExecutor(): { handler: ExecutorHandler; packets: Packet
       },
     };
   };
-  return {handler, packets};
+  return { handler, packets };
 }
 
 export function clockAdvancingExecutor(clock: FixedClock, nextNow: string): { handler: ExecutorHandler; packets: PacketSnapshot[] } {
@@ -95,18 +95,18 @@ export function clockAdvancingExecutor(clock: FixedClock, nextNow: string): { ha
       'step_id': input.packet.step_id,
       'attempt': input.packet.attempt,
       'status': 'success',
-      'output': {'summary': 'summary after deadline'},
-      'artifacts': {'report_md': `/tmp/${input.packet.run_id}.md`},
+      'output': { 'summary': 'summary after deadline' },
+      'artifacts': { 'report_md': `/tmp/${input.packet.run_id}.md` },
     };
   };
-  return {handler, packets};
+  return { handler, packets };
 }
 
 export class ClockAdvancingDecisionProvider implements DecisionProvider {
   constructor(
     private readonly clock: FixedClock,
     private readonly nextNow: string,
-  ) {}
+  ) { }
 
   async decide(input: Parameters<DecisionProvider['decide']>[0]): Promise<Decision> {
     this.clock.setNow(this.nextNow);
@@ -128,7 +128,38 @@ export class RecordingEventSink implements EventSink {
   }
 }
 
-export function buildDefinition(overrides: Partial<SopDefinition['policies']> = {}): SopDefinition {
+function buildBaseStep(): SopDefinition['steps'][number] {
+  return {
+    'id': 'step_a',
+    'title': 'A',
+    'inputs': { 'company': '${run.input.company}' },
+    'executor': {
+      'kind': 'tool',
+      'name': 'default_tool',
+      'config': { 'command_template': 'run', 'path': '/tmp' },
+      'timeout_secs': 120,
+      'allow_network': true,
+      'env': {},
+      'resource_limits': { 'max_output_bytes': 1024, 'max_artifacts': 1 },
+    },
+    'output_schema': {
+      'type': 'object',
+      'required': ['summary'],
+      'properties': { 'summary': { 'type': 'string' } },
+    },
+    'retry_policy': { 'max_attempts': 1, 'backoff_secs': [], 'retry_on': [] },
+    'supervision': {
+      'owner': 'main_agent',
+      'allowed_outcomes': [{ 'id': 'done', 'description': 'done' }],
+      'default_outcome': 'done',
+    },
+    'transitions': {
+      'done': { 'terminate': { 'run_status': 'succeeded', 'reason': 'complete' } },
+    },
+  } as SopDefinition['steps'][number];
+}
+
+function buildBaseDefinition(): SopDefinition {
   return {
     'sop_id': 'runtime_report',
     'name': 'Runtime Report',
@@ -137,9 +168,7 @@ export function buildDefinition(overrides: Partial<SopDefinition['policies']> = 
     'input_schema': {
       'type': 'object',
       'required': ['company'],
-      'properties': {
-        'company': {'type': 'string'},
-      },
+      'properties': { 'company': { 'type': 'string' } },
       'additionalProperties': false,
     },
     'policies': {
@@ -150,55 +179,21 @@ export function buildDefinition(overrides: Partial<SopDefinition['policies']> = 
         'mode': 'singleflight',
         'key_template': 'report:${run.input.company}',
       },
-      ...overrides,
     },
-    'steps': [{
-      'id': 'step_a',
-      'title': 'A',
-      'inputs': {
-        'company': '${run.input.company}',
-      },
-      'executor': {
-        'kind': 'tool',
-        'name': 'default_tool',
-        'config': {'command_template': 'run', 'path': '/tmp'},
-        'timeout_secs': 120,
-        'allow_network': true,
-        'env': {},
-        'resource_limits': {
-          'max_output_bytes': 1024,
-          'max_artifacts': 1,
-        },
-      },
-      'output_schema': {
-        'type': 'object',
-        'required': ['summary'],
-        'properties': {
-          'summary': {'type': 'string'},
-        },
-      },
-      'retry_policy': {
-        'max_attempts': 1,
-        'backoff_secs': [],
-        'retry_on': [],
-      },
-      'supervision': {
-        'owner': 'main_agent',
-        'allowed_outcomes': [{'id': 'done', 'description': 'done'}],
-        'default_outcome': 'done',
-      },
-      'transitions': {
-        'done': {
-          'terminate': {
-            'run_status': 'succeeded',
-            'reason': 'complete',
-          },
-        },
-      },
-    }],
+    'steps': [buildBaseStep()],
     'final_output': {
       'summary': '${steps.step_a.output.summary}',
       'artifact': '${steps.step_a.artifacts.report_md}',
+    },
+  };
+}
+
+export function buildDefinition(overrides: Partial<SopDefinition['policies']> = {}): SopDefinition {
+  return {
+    ...buildBaseDefinition(),
+    'policies': {
+      ...buildBaseDefinition().policies,
+      ...overrides,
     },
   };
 }
@@ -217,13 +212,13 @@ export function buildHost(overrides: {
     'idGenerator': overrides.idGenerator ?? new SequentialIdGenerator(),
     'eventSink': overrides.eventSink,
   });
-  return {host, store};
+  return { host, store };
 }
 
 export function registerDefaultExecutor(host: RuntimeHost): { packets: PacketSnapshot[] } {
-  const {handler, packets} = recordingExecutor();
+  const { handler, packets } = recordingExecutor();
   host.registerExecutor('tool', 'default_tool', handler);
-  return {packets};
+  return { packets };
 }
 
 export async function expectRuntimeErrorCode(

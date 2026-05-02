@@ -34,31 +34,8 @@ export async function runBeforeStepHooks(
   let currentConfig = structuredClone(packet.executor.config) as JsonObject | undefined;
 
   for (let i = 0; i < deps.beforeStepHooks.length; i += 1) {
-    const hook = deps.beforeStepHooks[i]!;
-    let hookResult;
-    try {
-      hookResult = hook({
-        'packet': clonePacketForHook(packet, currentInputs, currentConfig),
-        'definition': structuredClone(definition) as SopDefinition,
-        state: structuredClone(state) as RunState,
-      });
-    } catch (err: unknown) {
-      throw new RuntimeError('hook_rejected', {
-        'message': 'beforeStep hook threw an error.',
-        'details': {
-          'stage': 'beforeStep',
-          'index': i,
-          'error': err instanceof Error ? err.message : String(err),
-        },
-      });
-    }
-
-    if (hookResult === undefined || hookResult === null) {
-      continue;
-    }
-
-    assertHookResultObject(hookResult, 'beforeStep', i);
-    assertAllowedHookKeys(hookResult, BEFORE_STEP_HOOK_RESULT_KEYS, 'beforeStep', i, 'beforeStep hook result');
+    const hookResult = processBeforeHook(deps.beforeStepHooks[i]!, i, packet, definition, state, currentInputs, currentConfig);
+    if (hookResult === undefined || hookResult === null) continue;
 
     if (hookResult.control !== undefined) {
       validateHookControl(hookResult.control, 'beforeStep', i);
@@ -74,7 +51,42 @@ export async function runBeforeStepHooks(
     }
   }
 
-  return {currentInputs, currentConfig, control};
+  return { currentInputs, currentConfig, control };
+}
+
+function processBeforeHook(
+  hook: HostDeps['beforeStepHooks'][number],
+  index: number,
+  packet: ReturnType<typeof buildStepPacket>,
+  definition: SopDefinition,
+  state: RunState,
+  currentInputs: JsonObject,
+  currentConfig: JsonObject | undefined,
+): void | Record<string, unknown> | undefined | null {
+  let hookResult;
+  try {
+    hookResult = hook({
+      'packet': clonePacketForHook(packet, currentInputs, currentConfig),
+      'definition': structuredClone(definition) as SopDefinition,
+      state: structuredClone(state) as RunState,
+    });
+  } catch (err: unknown) {
+    throw new RuntimeError('hook_rejected', {
+      'message': 'beforeStep hook threw an error.',
+      'details': {
+        'stage': 'beforeStep',
+        'index': index,
+        'error': err instanceof Error ? err.message : String(err),
+      },
+    });
+  }
+
+  if (hookResult !== undefined && hookResult !== null) {
+    assertHookResultObject(hookResult, 'beforeStep', index);
+    assertAllowedHookKeys(hookResult, BEFORE_STEP_HOOK_RESULT_KEYS, 'beforeStep', index, 'beforeStep hook result');
+  }
+
+  return hookResult;
 }
 
 export async function runAfterStepHooks(
@@ -91,56 +103,67 @@ export async function runAfterStepHooks(
   let currentResult: StepResult = result;
 
   for (let i = 0; i < deps.afterStepHooks.length; i += 1) {
-    const hook = deps.afterStepHooks[i]!;
-    let clonedResult: StepResult;
-    try {
-      clonedResult = structuredClone(currentResult) as StepResult;
-    } catch (err: unknown) {
-      throw new RuntimeError('hook_rejected', {
-        'message': 'afterStep hook received a non-structured-cloneable step result.',
-        'details': {
-          'stage': 'afterStep',
-          'index': i,
-          'error': err instanceof Error ? err.message : String(err),
-        },
-      });
-    }
-    let hookResult;
-    try {
-      hookResult = hook({
-        'packet': clonePacketForHook(packet, packet.inputs, packet.executor.config),
-        'result': clonedResult,
-        'definition': structuredClone(definition) as SopDefinition,
-        state: structuredClone(state) as RunState,
-      });
-    } catch (err: unknown) {
-      throw new RuntimeError('hook_rejected', {
-        'message': 'afterStep hook threw an error.',
-        'details': {
-          'stage': 'afterStep',
-          'index': i,
-          'error': err instanceof Error ? err.message : String(err),
-        },
-      });
-    }
-
-    if (hookResult === undefined || hookResult === null) {
-      continue;
-    }
-
-    assertHookResultObject(hookResult, 'afterStep', i);
-    assertAllowedHookKeys(hookResult, AFTER_STEP_HOOK_RESULT_KEYS, 'afterStep', i, 'afterStep hook result');
+    const hookResult = processAfterHook(deps.afterStepHooks[i]!, i, packet, currentResult, definition, state);
+    if (hookResult === undefined || hookResult === null) continue;
 
     if (hookResult.control !== undefined) {
-      validateHookControl(hookResult.control, 'afterStep', i);
       control = hookResult.control as HookControl;
     }
     if (hookResult.result !== undefined) {
       assertHookResultObject(hookResult.result, 'afterStep', i);
       assertAllowedHookKeys(hookResult.result, AFTER_STEP_RESULT_PATCH_KEYS, 'afterStep', i, 'afterStep result patch');
-      currentResult = {...currentResult, ...(hookResult.result as Partial<StepResult>)};
+      currentResult = { ...currentResult, ...(hookResult.result as Partial<StepResult>) };
     }
   }
 
-  return {currentResult, control};
+  return { currentResult, control };
+}
+
+function processAfterHook(
+  hook: HostDeps['afterStepHooks'][number],
+  index: number,
+  packet: ReturnType<typeof buildStepPacket>,
+  currentResult: StepResult,
+  definition: SopDefinition,
+  state: RunState,
+): void | Record<string, unknown> | undefined | null {
+  let clonedResult: StepResult;
+  try {
+    clonedResult = structuredClone(currentResult) as StepResult;
+  } catch (err: unknown) {
+    throw new RuntimeError('hook_rejected', {
+      'message': 'afterStep hook received a non-structured-cloneable step result.',
+      'details': {
+        'stage': 'afterStep',
+        'index': index,
+        'error': err instanceof Error ? err.message : String(err),
+      },
+    });
+  }
+
+  let hookResult;
+  try {
+    hookResult = hook({
+      'packet': clonePacketForHook(packet, packet.inputs, packet.executor.config),
+      'result': clonedResult,
+      'definition': structuredClone(definition) as SopDefinition,
+      state: structuredClone(state) as RunState,
+    });
+  } catch (err: unknown) {
+    throw new RuntimeError('hook_rejected', {
+      'message': 'afterStep hook threw an error.',
+      'details': {
+        'stage': 'afterStep',
+        'index': index,
+        'error': err instanceof Error ? err.message : String(err),
+      },
+    });
+  }
+
+  if (hookResult !== undefined && hookResult !== null) {
+    assertHookResultObject(hookResult, 'afterStep', index);
+    assertAllowedHookKeys(hookResult, AFTER_STEP_HOOK_RESULT_KEYS, 'afterStep', index, 'afterStep hook result');
+  }
+
+  return hookResult;
 }

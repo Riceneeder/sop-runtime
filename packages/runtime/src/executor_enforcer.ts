@@ -7,7 +7,7 @@ import { JsonObject, StepResult } from '@sop-runtime/definition';
 const CODE_OUTPUT_SIZE = 'max_output_bytes_exceeded';
 const CODE_ARTIFACT_COUNT = 'max_artifacts_exceeded';
 const CODE_NON_SERIALIZABLE = 'non_serializable_output';
-const MAX_SET_TIMEOUT_MS = 2_147_483_647;
+export const MAX_SET_TIMEOUT_MS = 2_147_483_647;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -222,7 +222,7 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   return isStrictPlainObject(value) && Object.values(value).every((v) => typeof v === 'string');
 }
 
-function computeJsonUtf8Size(value: JsonObject): number | null {
+export function computeJsonUtf8Size(value: JsonObject): number | null {
   try {
     const json = JSON.stringify(value);
     if (json === undefined) {
@@ -234,7 +234,7 @@ function computeJsonUtf8Size(value: JsonObject): number | null {
   }
 }
 
-function normalizeTimeoutMs(timeoutSecs: number): number {
+export function normalizeTimeoutMs(timeoutSecs: number): number {
   const timeoutMs = Math.max(0, timeoutSecs * 1000);
   return Math.min(timeoutMs, MAX_SET_TIMEOUT_MS);
 }

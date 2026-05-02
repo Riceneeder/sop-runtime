@@ -36,13 +36,13 @@ export function validateRetryPolicy(value: unknown, path: string, diagnostics: D
   }
 
   pushUnknownKeys(value, RETRY_POLICY_KEYS, path, diagnostics);
-  requireIntegerAtLeast(value.max_attempts, 1, joinPath(path, 'max_attempts'), diagnostics);
+  requireIntegerAtLeast(value.max_attempts, joinPath(path, 'max_attempts'), diagnostics, { 'min': 1 });
 
   if (!Array.isArray(value.backoff_secs)) {
     diagnostics.push({'code': 'schema_type', 'message': 'Expected array.', 'path': joinPath(path, 'backoff_secs')});
   } else {
     value.backoff_secs.forEach((item, index) => {
-      requireIntegerAtLeast(item, 0, joinPath(path, 'backoff_secs', index), diagnostics);
+      requireIntegerAtLeast(item, joinPath(path, 'backoff_secs', index), diagnostics, { 'min': 0 });
     });
   }
 
@@ -50,7 +50,7 @@ export function validateRetryPolicy(value: unknown, path: string, diagnostics: D
     diagnostics.push({'code': 'schema_type', 'message': 'Expected array.', 'path': joinPath(path, 'retry_on')});
   } else {
     value.retry_on.forEach((item, index) => {
-      requireEnum(item, [...RETRYABLE_STEP_RESULT_STATUSES], joinPath(path, 'retry_on', index), diagnostics);
+      requireEnum(item, joinPath(path, 'retry_on', index), diagnostics, { 'allowed': [...RETRYABLE_STEP_RESULT_STATUSES] });
     });
   }
 }
@@ -67,7 +67,7 @@ export function validateSupervision(value: unknown, path: string, diagnostics: D
   }
 
   pushUnknownKeys(value, SUPERVISION_KEYS, path, diagnostics);
-  requireEnum(value.owner, ['main_agent'], joinPath(path, 'owner'), diagnostics);
+  requireEnum(value.owner, joinPath(path, 'owner'), diagnostics, { 'allowed': ['main_agent'] });
   requireNonEmptyString(value.default_outcome, joinPath(path, 'default_outcome'), diagnostics);
 
   if (!Array.isArray(value.allowed_outcomes)) {
@@ -93,7 +93,7 @@ export function validateSupervision(value: unknown, path: string, diagnostics: D
 
     pushUnknownKeys(outcome, OUTCOME_KEYS, outcomePath, diagnostics);
     requireNonEmptyString(outcome.id, joinPath(outcomePath, 'id'), diagnostics);
-    requirePattern(outcome.id, OUTCOME_ID_PATTERN, joinPath(outcomePath, 'id'), diagnostics);
+    requirePattern(outcome.id, joinPath(outcomePath, 'id'), diagnostics, { 'pattern': OUTCOME_ID_PATTERN });
     requireNonEmptyString(outcome.description, joinPath(outcomePath, 'description'), diagnostics);
   });
 }
@@ -145,7 +145,7 @@ function validateTransition(value: unknown, path: string, diagnostics: Diagnosti
 
   if (hasNextStep) {
     requireNonEmptyString(value.next_step, joinPath(path, 'next_step'), diagnostics);
-    requirePattern(value.next_step, STEP_ID_PATTERN, joinPath(path, 'next_step'), diagnostics);
+    requirePattern(value.next_step, joinPath(path, 'next_step'), diagnostics, { 'pattern': STEP_ID_PATTERN });
   }
 
   if (hasTerminate) {
@@ -165,6 +165,6 @@ function validateTerminalState(value: unknown, path: string, diagnostics: Diagno
   }
 
   pushUnknownKeys(value, TERMINAL_KEYS, path, diagnostics);
-  requireEnum(value.run_status, ['succeeded', 'failed', 'cancelled'], joinPath(path, 'run_status'), diagnostics);
+  requireEnum(value.run_status, joinPath(path, 'run_status'), diagnostics, { 'allowed': ['succeeded', 'failed', 'cancelled'] });
   requireNonEmptyString(value.reason, joinPath(path, 'reason'), diagnostics);
 }

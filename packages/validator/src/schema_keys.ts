@@ -48,11 +48,8 @@ export const STEP_KEYS = new Set([
 /** Allowed keys on executor configuration objects. 执行器配置对象允许出现的字段。 */
 export const EXECUTOR_KEYS = new Set([
   'kind',
-  'tool',
-  'model',
-  'command_template',
-  'prompt_template',
-  'path',
+  'name',
+  'config',
   'timeout_secs',
   'allow_network',
   'env',

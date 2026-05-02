@@ -14,8 +14,7 @@ export async function dispatchExecutor(
   definition: SopDefinition,
   state: RunState,
 ): Promise<StepResult> {
-  const inner = deps.executors.get(packet.executor.kind);
-  const handler = inner?.get(packet.executor.name);
+  const handler = deps.executors.get(packet.executor.kind)?.get(packet.executor.name);
   if (handler === undefined) {
     throw new RuntimeError('executor_not_registered', {
       'message': `No executor registered for ${packet.executor.kind}:${packet.executor.name}.`,
@@ -26,39 +25,13 @@ export async function dispatchExecutor(
     });
   }
 
-  const handlerInput: ExecutorHandlerInput = {
-    packet: {
-      'run_id': packet.run_id,
-      'step_id': packet.step_id,
-      'attempt': packet.attempt,
-      'inputs': packet.inputs,
-      'output_schema': packet.output_schema !== undefined ? structuredClone(packet.output_schema) : undefined,
-      'executor': packet.executor,
-    },
-    definition: structuredClone(definition) as SopDefinition,
-    state: structuredClone(state) as RunState,
-    'config': packet.executor.config ?? {},
-  };
-
   const invocation = await executeHandlerWithTimeout(
-    () => handler(handlerInput),
+    () => handler(buildHandlerInput(packet, definition, state)),
     packet.executor.timeout_secs,
   );
 
   if (invocation.kind === 'timeout') {
-    return {
-      'run_id': packet.run_id,
-      'step_id': packet.step_id,
-      'attempt': packet.attempt,
-      'status': 'timeout',
-      'error': {
-        'code': 'executor_timeout',
-        'message': `Executor ${packet.executor.kind}:${packet.executor.name} timed out after ${packet.executor.timeout_secs} seconds.`,
-        'details': {
-          'timeout_secs': packet.executor.timeout_secs,
-        },
-      },
-    };
+    return buildTimeoutResult(packet);
   }
 
   if (invocation.kind === 'error') {
@@ -72,4 +45,40 @@ export async function dispatchExecutor(
     'stepId': packet.step_id,
     'attempt': packet.attempt,
   });
+}
+
+function buildHandlerInput(
+  packet: ReturnType<typeof buildStepPacket>,
+  definition: SopDefinition,
+  state: RunState,
+): ExecutorHandlerInput {
+  return {
+    packet: {
+      'run_id': packet.run_id,
+      'step_id': packet.step_id,
+      'attempt': packet.attempt,
+      'inputs': packet.inputs,
+      'output_schema': packet.output_schema !== undefined ? structuredClone(packet.output_schema) : undefined,
+      'executor': packet.executor,
+    },
+    definition: structuredClone(definition) as SopDefinition,
+    state: structuredClone(state) as RunState,
+    'config': packet.executor.config ?? {},
+  };
+}
+
+function buildTimeoutResult(packet: ReturnType<typeof buildStepPacket>): StepResult {
+  return {
+    'run_id': packet.run_id,
+    'step_id': packet.step_id,
+    'attempt': packet.attempt,
+    'status': 'timeout',
+    'error': {
+      'code': 'executor_timeout',
+      'message': `Executor ${packet.executor.kind}:${packet.executor.name} timed out after ${packet.executor.timeout_secs} seconds.`,
+      'details': {
+        'timeout_secs': packet.executor.timeout_secs,
+      },
+    },
+  };
 }

@@ -65,7 +65,7 @@ export function validateArrayKeywords(
 
   if (isPlainObject(schema.items)) {
     value.forEach((item, index) => {
-      validateRuntimeSchemaValue(schema.items, item, joinPath(path, index), diagnostics);
+      validateRuntimeSchemaValue({ 'schema': schema.items, 'value': item, 'path': joinPath(path, index), 'diagnostics': diagnostics });
     });
     return;
   }
@@ -79,7 +79,7 @@ export function validateArrayKeywords(
       return;
     }
 
-    validateRuntimeSchemaValue(itemSchema, value[index], joinPath(path, index), diagnostics);
+    validateRuntimeSchemaValue({ 'schema': itemSchema, 'value': value[index], 'path': joinPath(path, index), 'diagnostics': diagnostics });
   });
 }
 
@@ -149,7 +149,7 @@ function validatePropertiesKeyword(
       continue;
     }
 
-    validateRuntimeSchemaValue(propertySchema, value[key], joinPath(path, key), diagnostics);
+    validateRuntimeSchemaValue({ 'schema': propertySchema, 'value': value[key], 'path': joinPath(path, key), 'diagnostics': diagnostics });
   }
 }
 
@@ -184,7 +184,7 @@ function validateAdditionalPropertiesKeyword(
       continue;
     }
 
-    validateRuntimeSchemaValue(additionalProperties, propertyValue, joinPath(path, key), diagnostics);
+    validateRuntimeSchemaValue({ 'schema': additionalProperties, 'value': propertyValue, 'path': joinPath(path, key), 'diagnostics': diagnostics });
   }
 }
 

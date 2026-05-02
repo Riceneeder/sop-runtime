@@ -16,15 +16,92 @@ import { dispatchExecutor } from './executor_dispatch.js';
 import { runBeforeStepHooks, runAfterStepHooks } from './hook_runners.js';
 import { enforceResourceLimits } from './executor_enforcer.js';
 
-interface ApplyResultParams {
+export async function runReadyStepImpl(
+  deps: HostDeps,
+  definition: SopDefinition,
+  runId: string,
+): Promise<RunState> {
+  let state = await requireRun(deps.store, runId);
+  assertDefinitionMatchesRun(definition, state);
+  state = await enforceMaxRunSecs(definition, state, deps);
+  if (state.phase === 'terminated') return state;
+
+  const packet = buildStepPacket({ 'definition': definition, state });
+  await emitPacketBuilt(deps, state, packet);
+
+  const { currentInputs, currentConfig, control: beforeControl } =
+    await runBeforeStepHooks(deps, packet, definition, state);
+
+  state = await enforceMaxRunSecs(definition, state, deps);
+  if (state.phase === 'terminated') return state;
+
+  packet.inputs = currentInputs;
+  if (currentConfig !== undefined) {
+    (packet.executor as { config?: JsonObject }).config = currentConfig;
+  }
+
+  if (beforeControl !== null) {
+    return handleControl(deps, beforeControl, definition, state);
+  }
+
+  const result = await dispatchExecutor(deps, packet, definition, state);
+  state = await enforceMaxRunSecs(definition, state, deps);
+  if (state.phase === 'terminated') return state;
+
+  return handleAfterStepHookResult(deps, definition, packet, result, state);
+}
+
+async function handleAfterStepHookResult(
+  deps: HostDeps,
+  definition: SopDefinition,
+  packet: ReturnType<typeof buildStepPacket>,
+  result: StepResult,
+  state: RunState,
+): Promise<RunState> {
+  const { currentResult, control: afterControl } =
+    await runAfterStepHooks(deps, packet, result, definition, state);
+
+  let nextState = await enforceMaxRunSecs(definition, state, deps);
+  if (nextState.phase === 'terminated') return nextState;
+
+  const enforcedResult = enforceLimitsPreserve(currentResult, packet);
+
+  nextState = await enforceMaxRunSecs(definition, nextState, deps);
+  if (nextState.phase === 'terminated') return nextState;
+
+  nextState = await applyResultAndEmit({
+    deps, definition, state: nextState, enforcedResult, 'stepId': packet.step_id,
+  });
+
+  if (afterControl !== null) {
+    const stateBeforeControl = await enforceMaxRunSecs(definition, nextState, deps);
+    if (stateBeforeControl.phase === 'terminated') return stateBeforeControl;
+    return handleControl(deps, afterControl, definition, stateBeforeControl);
+  }
+
+  return nextState;
+}
+
+async function emitPacketBuilt(
+  deps: HostDeps,
+  state: RunState,
+  packet: ReturnType<typeof buildStepPacket>,
+): Promise<void> {
+  await deps.eventSink.emit({
+    kind: 'step_packet_built',
+    'run_id': state.run_id,
+    at: deps.clock.now(),
+    details: { 'step_id': packet.step_id, 'attempt': packet.attempt },
+  });
+}
+
+async function applyResultAndEmit(params: {
   deps: HostDeps;
   definition: SopDefinition;
   state: RunState;
   enforcedResult: StepResult;
   stepId: string;
-}
-
-async function applyResultAndEmit(params: ApplyResultParams): Promise<RunState> {
+}): Promise<RunState> {
   const { deps, definition, state, enforcedResult, stepId } = params;
   const nextState = applyStepResult({
     'definition': definition,
@@ -59,66 +136,4 @@ function enforceLimitsPreserve(
     'attempt': packet.attempt,
     'invalidPayloadPolicy': 'preserve',
   });
-}
-
-export async function runReadyStepImpl(
-  deps: HostDeps,
-  definition: SopDefinition,
-  runId: string,
-): Promise<RunState> {
-  let state = await requireRun(deps.store, runId);
-  assertDefinitionMatchesRun(definition, state);
-  state = await enforceMaxRunSecs(definition, state, deps);
-  if (state.phase === 'terminated') return state;
-
-  const packet = buildStepPacket({'definition': definition, state});
-  await deps.eventSink.emit({
-    kind: 'step_packet_built',
-    'run_id': state.run_id,
-    at: deps.clock.now(),
-    details: {'step_id': packet.step_id, 'attempt': packet.attempt},
-  });
-
-  const {currentInputs, currentConfig, control: beforeControl} =
-    await runBeforeStepHooks(deps, packet, definition, state);
-
-  state = await enforceMaxRunSecs(definition, state, deps);
-  if (state.phase === 'terminated') return state;
-
-  packet.inputs = currentInputs;
-  if (currentConfig !== undefined) {
-    (packet.executor as {config?: JsonObject}).config = currentConfig;
-  }
-
-  if (beforeControl !== null) {
-    return handleControl(deps, beforeControl, definition, state);
-  }
-
-  const result = await dispatchExecutor(deps, packet, definition, state);
-  state = await enforceMaxRunSecs(definition, state, deps);
-  if (state.phase === 'terminated') return state;
-
-  const {currentResult, control: afterControl} =
-    await runAfterStepHooks(deps, packet, result, definition, state);
-
-  state = await enforceMaxRunSecs(definition, state, deps);
-  if (state.phase === 'terminated') return state;
-
-  const enforcedResult = enforceLimitsPreserve(currentResult, packet);
-
-  state = await enforceMaxRunSecs(definition, state, deps);
-  if (state.phase === 'terminated') return state;
-
-  const nextState = await applyResultAndEmit({
-    deps, definition, state, enforcedResult,
-    'stepId': packet.step_id,
-  });
-
-  if (afterControl !== null) {
-    const stateBeforeControl = await enforceMaxRunSecs(definition, nextState, deps);
-    if (stateBeforeControl.phase === 'terminated') return stateBeforeControl;
-    return handleControl(deps, afterControl, definition, stateBeforeControl);
-  }
-
-  return nextState;
 }

@@ -50,15 +50,15 @@ function validateRoot(definition: SopDefinition, diagnostics: Diagnostic[]): voi
   }
 
   requireNonEmptyString(definition.sop_id, 'sop_id', diagnostics);
-  requirePattern(definition.sop_id, SOP_ID_PATTERN, 'sop_id', diagnostics);
+  requirePattern(definition.sop_id, 'sop_id', diagnostics, { 'pattern': SOP_ID_PATTERN });
 
   requireNonEmptyString(definition.name, 'name', diagnostics);
 
   requireNonEmptyString(definition.version, 'version', diagnostics);
-  requirePattern(definition.version, VERSION_PATTERN, 'version', diagnostics);
+  requirePattern(definition.version, 'version', diagnostics, { 'pattern': VERSION_PATTERN });
 
   requireNonEmptyString(definition.entry_step, 'entry_step', diagnostics);
-  requirePattern(definition.entry_step, STEP_ID_PATTERN, 'entry_step', diagnostics);
+  requirePattern(definition.entry_step, 'entry_step', diagnostics, { 'pattern': STEP_ID_PATTERN });
 
   requireObject(definition.input_schema, 'input_schema', diagnostics);
 
@@ -74,7 +74,7 @@ function validateRoot(definition: SopDefinition, diagnostics: Diagnostic[]): voi
     requireObject(definition.metadata, 'metadata', diagnostics);
   }
 
-  requireArrayWithMinItems(definition.steps, 1, 'steps', diagnostics);
+  requireArrayWithMinItems(definition.steps, 'steps', diagnostics, { 'minItems': 1 });
 }
 
 /**
@@ -91,8 +91,8 @@ function validatePolicies(policies: SopDefinition['policies'], diagnostics: Diag
 
   pushUnknownKeys(policies, POLICY_KEYS, 'policies', diagnostics);
 
-  requireIntegerAtLeast(policies.cooldown_secs, 0, 'policies.cooldown_secs', diagnostics);
-  requireIntegerAtLeast(policies.max_run_secs, 1, 'policies.max_run_secs', diagnostics);
+  requireIntegerAtLeast(policies.cooldown_secs, 'policies.cooldown_secs', diagnostics, { 'min': 0 });
+  requireIntegerAtLeast(policies.max_run_secs, 'policies.max_run_secs', diagnostics, { 'min': 1 });
   requireNonEmptyString(policies.idempotency_key_template, 'policies.idempotency_key_template', diagnostics);
 
   requireObject(policies.concurrency, 'policies.concurrency', diagnostics);
@@ -105,9 +105,9 @@ function validatePolicies(policies: SopDefinition['policies'], diagnostics: Diag
 
   requireEnum(
     policies.concurrency.mode,
-    ['singleflight', 'allow_parallel', 'drop_if_running'],
     'policies.concurrency.mode',
     diagnostics,
+    { 'allowed': ['singleflight', 'allow_parallel', 'drop_if_running'] },
   );
 
   requireNonEmptyString(policies.concurrency.key_template, 'policies.concurrency.key_template', diagnostics);
@@ -133,7 +133,7 @@ function validateSteps(steps: SopDefinition['steps'], diagnostics: Diagnostic[])
 
     pushUnknownKeys(step, STEP_KEYS, basePath, diagnostics);
     requireNonEmptyString(step.id, joinPath(basePath, 'id'), diagnostics);
-    requirePattern(step.id, STEP_ID_PATTERN, joinPath(basePath, 'id'), diagnostics);
+    requirePattern(step.id, joinPath(basePath, 'id'), diagnostics, { 'pattern': STEP_ID_PATTERN });
     requireNonEmptyString(step.title, joinPath(basePath, 'title'), diagnostics);
 
     if (step.description !== undefined) {
@@ -154,9 +154,9 @@ function validateSteps(steps: SopDefinition['steps'], diagnostics: Diagnostic[])
 }
 
 /**
- * Validate executor configuration and gate kind-specific fields.
+ * Validate executor configuration.
  *
- * 校验执行器配置，并按执行器类型要求对应字段。
+ * 校验执行器配置。
  */
 function validateExecutor(value: unknown, path: string, diagnostics: Diagnostic[]): void {
   requireObject(value, path, diagnostics);
@@ -165,46 +165,15 @@ function validateExecutor(value: unknown, path: string, diagnostics: Diagnostic[
   }
 
   pushUnknownKeys(value, EXECUTOR_KEYS, path, diagnostics);
-  requireEnum(value.kind, ['sandbox_tool', 'sandbox_script', 'sandbox_model'], joinPath(path, 'kind'), diagnostics);
-  requireNonEmptyString(value.path, joinPath(path, 'path'), diagnostics);
-  requireIntegerAtLeast(value.timeout_secs, 1, joinPath(path, 'timeout_secs'), diagnostics);
+  requireNonEmptyString(value.kind, joinPath(path, 'kind'), diagnostics);
+  requireNonEmptyString(value.name, joinPath(path, 'name'), diagnostics);
+  requireIntegerAtLeast(value.timeout_secs, joinPath(path, 'timeout_secs'), diagnostics, { 'min': 1 });
   requireBoolean(value.allow_network, joinPath(path, 'allow_network'), diagnostics);
   validateStringMap(value.env, joinPath(path, 'env'), diagnostics);
   validateResourceLimits(value.resource_limits, joinPath(path, 'resource_limits'), diagnostics);
 
-  const requiresToolFields = value.kind === 'sandbox_tool' || value.kind === 'sandbox_script';
-  const requiresModelFields = value.kind === 'sandbox_model';
-
-  validateExecutorStringField(value, 'tool', path, diagnostics, requiresToolFields);
-  validateExecutorStringField(value, 'command_template', path, diagnostics, requiresToolFields);
-  validateExecutorStringField(value, 'model', path, diagnostics, requiresModelFields);
-  validateExecutorStringField(value, 'prompt_template', path, diagnostics, requiresModelFields);
-}
-
-/**
- * Validate a string field whose requiredness depends on executor kind.
- *
- * 校验某个字符串字段，并根据执行器类型决定是否必填。
- */
-function validateExecutorStringField(
-  value: Record<string, unknown>,
-  key: 'command_template' | 'model' | 'prompt_template' | 'tool',
-  path: string,
-  diagnostics: Diagnostic[],
-  required: boolean,
-): void {
-  const fieldPath = joinPath(path, key);
-
-  if (!Object.hasOwn(value, key)) {
-    if (required) {
-      diagnostics.push({'code': 'schema_type', 'message': 'Expected string.', 'path': fieldPath});
-    }
-
-    return;
-  }
-
-  if (typeof value[key] !== 'string') {
-    diagnostics.push({'code': 'schema_type', 'message': 'Expected string.', 'path': fieldPath});
+  if (value.config !== undefined && value.config !== null) {
+    requireObject(value.config, joinPath(path, 'config'), diagnostics);
   }
 }
 
@@ -220,8 +189,8 @@ function validateResourceLimits(value: unknown, path: string, diagnostics: Diagn
   }
 
   pushUnknownKeys(value, RESOURCE_LIMIT_KEYS, path, diagnostics);
-  requireIntegerAtLeast(value.max_output_bytes, 1, joinPath(path, 'max_output_bytes'), diagnostics);
-  requireIntegerAtLeast(value.max_artifacts, 0, joinPath(path, 'max_artifacts'), diagnostics);
+  requireIntegerAtLeast(value.max_output_bytes, joinPath(path, 'max_output_bytes'), diagnostics, { 'min': 1 });
+  requireIntegerAtLeast(value.max_artifacts, joinPath(path, 'max_artifacts'), diagnostics, { 'min': 0 });
 }
 
 /**

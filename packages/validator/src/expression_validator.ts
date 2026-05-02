@@ -62,11 +62,9 @@ export function validateExpressionDefinition(definition: SopDefinition): Diagnos
       visitTemplateValue(step.inputs, joinPath('steps', stepIndex, 'inputs'), context, diagnostics);
     }
 
-    if (typeof step.executor === 'object' && step.executor !== null) {
-      if (typeof step.executor.path === 'string') {
-        visitTemplateValue(step.executor.path, joinPath('steps', stepIndex, 'executor', 'path'), context, diagnostics);
-      }
-    }
+    // Executor config is handler-owned opaque data — validator does not inspect it.
+    // Handlers / adapters that need template resolution in config fields should
+    // use evaluateExpressionTemplate themselves.
   });
 
   visitTemplateValue(definition.final_output, 'final_output', context, diagnostics, finalOutputOptions);
