@@ -1700,7 +1700,7 @@ describe('validateDefinition', () => {
     expect(result.diagnostics.filter((item) => item.code.startsWith('expression_'))).toEqual([]);
   });
 
-  test('reports invalid expression references in executor config string values', () => {
+  test('skips expression validation for handler-owned executor config', () => {
     const result = validateDefinition({
       'sop_id': 'expr_executor_config',
       'name': 'Expr Executor Config',
@@ -1750,12 +1750,11 @@ describe('validateDefinition', () => {
       'final_output': {'summary': 'ok'},
     });
 
-    expect(result.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        'code': 'expression_unknown_step',
-        'path': 'steps.0.executor.config.workspace_path',
-      }),
-    ]));
+    // Executor config is handler-owned opaque data — expression validation is skipped.
+    const executorConfigDiagnostics = result.diagnostics.filter(
+      (item) => item.path.startsWith('steps.0.executor.config'),
+    );
+    expect(executorConfigDiagnostics).toEqual([]);
   });
 
   test('reports invalid expression references in nested step input values', () => {

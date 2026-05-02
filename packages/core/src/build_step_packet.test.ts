@@ -93,9 +93,10 @@ describe('buildStepPacket', () => {
     });
     expect(packet.executor.kind).toBe('web_search');
     expect(packet.executor.name).toBe('web_search');
+    // Executor config is handler-owned opaque data — templates are passed through as-is.
     expect(packet.executor.config).toEqual({
-      'command_template': 'Search Acme',
-      'path': '/tmp/default',
+      'command_template': 'Search ${run.input.company}',
+      'path': '${run.input.workspace}',
     });
   });
 

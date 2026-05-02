@@ -77,13 +77,8 @@ export function validateExpressionDefinition(definition: SopDefinition): Diagnos
       visitTemplateValue(stepObj.inputs, joinPath('steps', stepIndex, 'inputs'), context, diagnostics);
     }
 
-    // Recursively validate expression templates in executor config.
-    if (typeof stepObj.executor === 'object' && stepObj.executor !== null && !Array.isArray(stepObj.executor)) {
-      const executorConfig = (stepObj.executor as Record<string, unknown>).config;
-      if (typeof executorConfig === 'object' && executorConfig !== null && !Array.isArray(executorConfig)) {
-        visitTemplateValue(executorConfig, joinPath('steps', stepIndex, 'executor', 'config'), context, diagnostics);
-      }
-    }
+    // Executor config is handler-owned opaque data — skip expression validation.
+    // Expressions embedded in config are resolved at runtime by renderJsonValueTemplates.
   });
 
   visitTemplateValue(definition.final_output, 'final_output', context, diagnostics, finalOutputOptions);

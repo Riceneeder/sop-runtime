@@ -539,8 +539,12 @@ export class RuntimeHost {
     runStatus: 'cancelled' | 'failed';
     reason: string;
   }): Promise<RunState> {
-    const state = await this.requireRun(params.runId);
+    let state = await this.requireRun(params.runId);
     assertDefinitionMatchesRun(params.definition, state);
+    state = await this.enforceMaxRunSecs(params.definition, state);
+    if (state.phase === 'terminated') {
+      return state;
+    }
 
     const terminated = terminateRun({
       'definition': params.definition,
