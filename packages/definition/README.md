@@ -110,17 +110,25 @@ const definition = defineSop({
 
 ### 源码与配置文件
 
-| 文件                                                 | 作用                                           | 直接依赖                                                                              | 谁会依赖它                                                             |
-| -------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`package.json`](./package.json)                   | 定义包名、模块类型和工作区身份。这个包目前是私有 workspace 包。        | 无                                                                                 | 包管理器、工作区解析                                                        |
-| [`tsconfig.json`](./tsconfig.json)                 | 指定 `src` 为源码目录、`dist` 为构建输出目录。               | 根 `tsconfig.base.json`                                                            | TypeScript 构建                                                     |
-| [`src/index.ts`](./src/index.ts)                   | 公共导出入口；把内部模块重新导出给外部使用者。                      | `run_state.ts`、`execution.ts`、`json_value.ts`、`sop_definition.ts`、`expression.ts` | 其他包、测试                                                            |
-| [`src/json_value.ts`](./src/json_value.ts)         | 定义全包最底层的 JSON 类型系统。                          | 无                                                                                 | `sop_definition.ts`、`execution.ts`、`run_state.ts`、`expression.ts` |
-| [`src/sop_definition.ts`](./src/sop_definition.ts) | 定义 SOP DSL：步骤、转移、执行器、策略等 authoring-time 模型。  | `json_value.ts`                                                                   | `execution.ts`、`index.ts`、validator 包                             |
-| [`src/execution.ts`](./src/execution.ts)           | 定义执行器请求/响应、监督决策、步骤运行记录等 execution-time 数据结构。 | `sop_definition.ts`、`json_value.ts`                                               | `run_state.ts`、`index.ts`                                         |
-| [`src/run_state.ts`](./src/run_state.ts)           | 定义整次运行的状态快照、历史事件和状态常量。                       | `execution.ts`、`json_value.ts`                                                    | `index.ts`、未来 runtime/core 包                                      |
-| [`src/expression.ts`](./src/expression.ts)         | 定义表达式 AST，并实现模板解析器和语法错误类型。                   | `json_value.ts`                                                                   | `index.ts`、validator 包                                            |
-| [`src/builder.ts`](./src/builder.ts)               | 最小 Builder API：`defineSop` 类型约束 identity。            | `sop_definition.ts`                                                              | `index.ts`、使用 TS authoring 的调用方                                      |
+| 文件                                                                 | 作用                                                           | 直接依赖                                                   | 谁会依赖它                                                |
+| -------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------- | ----------------------------------------------------- |
+| [`package.json`](./package.json)                                     | 定义包名、模块类型和工作区身份。这个包目前是私有 workspace 包。              | 无                                                          | 包管理器、工作区解析                                           |
+| [`tsconfig.json`](./tsconfig.json)                                   | 指定 `src` 为源码目录、`dist` 为构建输出目录。                         | 根 `tsconfig.base.json`                                     | TypeScript 构建                                         |
+| [`src/index.ts`](./src/index.ts)                                     | 公共导出入口；把内部模块重新导出给外部使用者。                              | `run_state.ts`、`execution.ts`、`json_value.ts`、`sop_definition.ts`、`expression.ts` | 其他包、测试                                                |
+| [`src/json_value.ts`](./src/json_value.ts)                           | 定义全包最底层的 JSON 类型系统和安全检测工具。                          | 无                                                          | `sop_definition.ts`、`execution.ts`、`run_state.ts`、各 expression 模块 |
+| [`src/sop_definition.ts`](./src/sop_definition.ts)                   | 定义 SOP DSL 顶层类型：`SopDefinition`、`StepDefinition`、`ExecutorConfig`、`Transition`、`RetryPolicy`、`SupervisionConfig` 等。 | `json_value.ts`、`executor_types.ts`、`policy_types.ts`、`step_definition_types.ts`、`transition_types.ts` | `execution.ts`、`index.ts`、validator 包                 |
+| [`src/executor_types.ts`](./src/executor_types.ts)                   | 执行器相关类型：`ExecutorConfig`、`ResourceLimits`。                | `json_value.ts`                                            | `sop_definition.ts`                                     |
+| [`src/policy_types.ts`](./src/policy_types.ts)                       | 策略相关类型：`Policies`、`ConcurrencyConfig`。                    | `json_value.ts`                                            | `sop_definition.ts`                                     |
+| [`src/step_definition_types.ts`](./src/step_definition_types.ts)     | 步骤定义类型：`StepDefinition`、`SupervisionConfig`、`RetryPolicy`。  | `json_value.ts`、`executor_types.ts`、`transition_types.ts` | `sop_definition.ts`                                     |
+| [`src/transition_types.ts`](./src/transition_types.ts)               | 转移和终止类型：`Transition`、`TerminalTransition`。                | `json_value.ts`                                            | `sop_definition.ts`                                     |
+| [`src/execution.ts`](./src/execution.ts)                             | 定义执行器请求/响应、监督决策、步骤运行记录等 execution-time 数据结构。       | `sop_definition.ts`、`json_value.ts`                       | `run_state.ts`、`index.ts`                              |
+| [`src/run_state.ts`](./src/run_state.ts)                             | 定义整次运行的状态快照、历史事件和状态常量。                               | `execution.ts`、`json_value.ts`                            | `index.ts`、runtime/core 包                              |
+| [`src/expression.ts`](./src/expression.ts)                           | 表达式模块公共门面；重新导出 AST 类型、语法错误类及解析函数。                   | `expression_ast.ts`、`expression_body_parser.ts`、`template_parser.ts` | `index.ts`、validator 包                                 |
+| [`src/expression_ast.ts`](./src/expression_ast.ts)                   | 定义表达式 AST 节点类型（`ExpressionNode`、`ExpressionReference`、`CoalesceExpression` 等）和 `ExpressionSyntaxError`。 | `json_value.ts`                                            | `expression.ts`、validator 包                             |
+| [`src/expression_body_parser.ts`](./src/expression_body_parser.ts)   | 解析表达式体：`parseExpressionBody`，将 `${...}` 内的内容解析为 AST。   | `expression_ast.ts`、`json_value.ts`                       | `expression.ts`、validator 包                             |
+| [`src/expression_argument_splitter.ts`](./src/expression_argument_splitter.ts) | Coalesce 表达式参数拆分：`splitCoalesceArgs`。                     | `expression_ast.ts`                                        | `expression_body_parser.ts`                              |
+| [`src/template_parser.ts`](./src/template_parser.ts)                 | 解析完整模板字符串：`parseExpressionTemplate`，将含 `${...}` 的字符串拆为文本和表达式片段。 | `expression_ast.ts`、`expression_body_parser.ts`           | `expression.ts`、validator 包                             |
+| [`src/builder.ts`](./src/builder.ts)                                 | 最小 Builder API：`defineSop` 类型约束 identity。              | `sop_definition.ts`                                        | `index.ts`、使用 TS authoring 的调用方                       |
 
 ### 测试文件
 
@@ -128,6 +136,7 @@ const definition = defineSop({
 | ---------------------------------------------------- | ---------------------- | ----------------------------------------------- |
 | [`src/index.test.ts`](./src/index.test.ts)           | 检查公共导出是否完整、联合类型是否正确收窄。 | 包入口、类型导出、常量导出                                   |
 | [`src/expression.test.ts`](./src/expression.test.ts) | 检查表达式解析器的 AST 形态和错误处理。 | `parseExpressionBody`、`parseExpressionTemplate` |
+| [`src/json_value.test.ts`](./src/json_value.test.ts) | 检查 JSON 安全值检测工具函数。       | `isJsonSafeValue`、`isJsonSafeObject`、`isStrictPlainObject`、`isStringRecord` |
 
 ### 构建产物与缓存
 
@@ -142,24 +151,28 @@ const definition = defineSop({
 如果把这个包理解成一张依赖图，顺序是：
 
 ```text
-json_value
-├── sop_definition
-│   └── execution
-│       └── run_state
-└── expression
+json_value                                  expression_ast
+├── executor_types                              │
+├── policy_types                       expression_argument_splitter
+├── transition_types                           │
+├── step_definition_types             expression_body_parser
+│                                          │
+├── sop_definition                    template_parser
+│   └── execution                        │
+│       └── run_state              expression (facade)
 
 index
 ├── json_value
-├── sop_definition
+├── sop_definition (transitively consolidates sub-types)
 ├── execution
 ├── run_state
-└── expression
+└── expression (facade)
 ```
 
 可以把它理解为两条主线：
 
-- 类型主线：`json_value -> sop_definition -> execution -> run_state`
-- 表达式主线：`json_value -> expression`
+- 类型主线：`json_value -> executor_types/policy_types/transition_types/step_definition_types -> sop_definition -> execution -> run_state`
+- 表达式主线：`json_value -> expression_ast -> expression_body_parser / template_parser -> expression (facade)`
 
 最后由 `index.ts` 把两条主线聚合成外部可用 API。
 
@@ -170,37 +183,38 @@ index
 推荐顺序：
 
 1. [`src/index.ts`](./src/index.ts)：先看包到底导出了什么
-2. [`src/sop_definition.ts`](./src/sop_definition.ts)：理解 SOP 定义层模型
+2. [`src/sop_definition.ts`](./src/sop_definition.ts)：理解 SOP 定义层顶层模型
 3. [`src/builder.ts`](./src/builder.ts)：理解 `defineSop` Builder API 的使用方式
 4. [`src/execution.ts`](./src/execution.ts)：理解执行和结果数据
 5. [`src/run_state.ts`](./src/run_state.ts)：理解整次运行状态
-6. [`src/expression.ts`](./src/expression.ts)：只有在你需要模板表达式时再读
+6. [`src/expression_ast.ts`](./src/expression_ast.ts) + [`src/expression_body_parser.ts`](./src/expression_body_parser.ts)：只有在你需要模板表达式时再读
 
 ### 如果你是仓库内开发者
 
 推荐顺序：
 
 1. [`src/json_value.ts`](./src/json_value.ts)
-2. [`src/sop_definition.ts`](./src/sop_definition.ts)
-3. [`src/builder.ts`](./src/builder.ts)
-4. [`src/execution.ts`](./src/execution.ts)
-5. [`src/run_state.ts`](./src/run_state.ts)
-6. [`src/expression.ts`](./src/expression.ts)
-7. [`src/index.ts`](./src/index.ts)
-8. [`src/index.test.ts`](./src/index.test.ts)
-9. [`src/expression.test.ts`](./src/expression.test.ts)
-
-这样读的原因是：先理解最稳定的基础类型，再看 SOP 模型和 Builder API，再看运行时模型，最后再回头看入口聚合和测试覆盖。
+2. [`src/executor_types.ts`](./src/executor_types.ts)、[`src/policy_types.ts`](./src/policy_types.ts)、[`src/transition_types.ts`](./src/transition_types.ts)、[`src/step_definition_types.ts`](./src/step_definition_types.ts)
+3. [`src/sop_definition.ts`](./src/sop_definition.ts)
+4. [`src/builder.ts`](./src/builder.ts)
+5. [`src/execution.ts`](./src/execution.ts)
+6. [`src/run_state.ts`](./src/run_state.ts)
+7. [`src/expression_ast.ts`](./src/expression_ast.ts)、[`src/expression_body_parser.ts`](./src/expression_body_parser.ts)、[`src/template_parser.ts`](./src/template_parser.ts)
+8. [`src/index.ts`](./src/index.ts)
+9. [`src/index.test.ts`](./src/index.test.ts)
+10. [`src/expression.test.ts`](./src/expression.test.ts)、[`src/json_value.test.ts`](./src/json_value.test.ts)
 
 ## 测试文件说明
 
-这个包的测试分两层：
+这个包的测试按职责分三层：
 
 - [`src/index.test.ts`](./src/index.test.ts) 偏“对外契约测试”
   - 它验证使用者能否从 `index.ts` 拿到正确的导出
   - 它还验证联合类型的区分和约束是否符合预期
-- [`src/expression.test.ts`](./src/expression.test.ts) 偏“内部算法测试”
+- [`src/expression.test.ts`](./src/expression.test.ts) 偏“解析算法测试”
   - 它验证模板切分、引用解析、`coalesce(...)` 参数拆分和异常分支
+- [`src/json_value.test.ts`](./src/json_value.test.ts) 偏“工具函数测试”
+  - 它验证 JSON 安全值检测和类型守卫的行为
 
 如果你只想判断包的公开能力有没有变，先看 `index.test.ts`；如果你在追表达式行为，再看 `expression.test.ts`。
 
@@ -219,4 +233,8 @@ index
 - `ExpressionSyntaxError`
 - 表达式 AST 类型
 
-因此，想理解 validator 为什么这么校验，通常应该先读这个包，尤其是 [`src/sop_definition.ts`](./src/sop_definition.ts) 和 [`src/expression.ts`](./src/expression.ts)。
+因此，想理解 validator 为什么这么校验，通常应该先读这个包，尤其是 [`src/sop_definition.ts`](./src/sop_definition.ts) 和 [`src/expression_ast.ts`](./src/expression_ast.ts)。
+
+## 与 schema/example 的关系
+
+`@sop-runtime/definition` 不负责导出仓库根目录的 `schemas/sop-definition.schema.json` 和 `examples/basic_sop_definition.json`。这两个仓库级工件属于公开契约，但不作为 workspace package export 发布。当前暂不从 definition package 输出 schema/example 的 npm package 路径或远程 URL。

@@ -170,13 +170,15 @@ runtime 不实现具体 CLI、MCP server、Agent 插件或沙箱。
 - 完整示例
 - TypeScript Builder API
 
+当前 v1-alpha 中，结构层 JSON Schema 以 [`schemas/sop-definition.schema.json`](../../schemas/sop-definition.schema.json) 形式存放在仓库根目录。完整的参考示例如 [`examples/basic_sop_definition.json`](../../examples/basic_sop_definition.json)，该示例通过 validator 测试覆盖。两者目前均属于仓库级工件，不作为 workspace package export 发布。远程 schema URL、npm package schema path、CLI 分发路径等发布策略不在当前范围内。
+
 ### 4.1 顶层结构
 
 一份 SOP definition 至少包含：
 
 ```json
 {
-  "$schema": "https://example.com/schemas/sop-definition.schema.json",
+  "$schema": "../schemas/sop-definition.schema.json",
   "sop_id": "company_news_report",
   "name": "公司新闻日报",
   "version": "1.0.0",
@@ -413,9 +415,9 @@ await host.getRunState({runId});
 await host.getCurrentStep({definition, runId});
 await host.runReadyStep({definition, runId});
 await host.decideOutcome({definition, runId, outcomeId, reason, metadata});
-await host.pauseRun({runId, reason});
-await host.resumeRun({runId});
-await host.terminateRun({runId, status, reason});
+await host.pauseRun({definition, runId, reason});
+await host.resumeRun({definition, runId});
+await host.terminateRun({definition, runId, runStatus, reason});
 await host.runUntilComplete({definition, runId});
 ```
 
@@ -430,6 +432,12 @@ await host.runUntilComplete({definition, runId});
 - `resumeRun` 恢复到暂停前 phase。
 - `terminateRun` 由 agent 显式终止 run。
 - `runUntilComplete` 是本地嵌入和测试便利方法，不是 agent 监管场景的唯一入口。
+
+控制面 API（`pauseRun`、`resumeRun`、`terminateRun`）需要调用方显式传入 `definition`，原因如下：
+
+- runtime 需要校验传入 definition 的 `sop_id`/`version` 是否与持久化 run state 匹配。
+- runtime 需要访问 definition 中的策略字段，例如 `max_run_secs`，以继续执行 host 级 policy enforcement。
+- v1-alpha 不内置 definition registry，因此调用方必须在每个控制请求中携带 definition。
 
 ### 5.2 启动策略
 
@@ -485,7 +493,7 @@ interface PauseState {
 
 - `phase === "paused"` 时必须存在 `pause`。
 - `resumeRun` 将 phase 恢复为 `pause.previous_phase`，并清除 `pause`。
-- `pauseRun` 只能暂停非终止 run。
+- `pauseRun` 只能暂停非终止 run。需要调用方传入 definition 以验证 sop_id/version 一致性和访问策略配置。
 - 已暂停 run 不能 build packet、accept result、apply decision。
 
 ### 6.4 Step lifecycle

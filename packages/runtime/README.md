@@ -186,7 +186,7 @@ Hook 返回值是 strict 的：
 - `decideOutcome(params)`：从当前 accepted result 构造 `Decision` 并调用 core `applyDecision`。推荐 Agent 监管场景使用此方法。
 - `getRunState(params)`：从 store 读取并返回 run 快照。
 - `getCurrentStep(params)`：返回当前步骤视图，终止 run 返回 `null`。
-- `pauseRun / resumeRun / terminateRun`：运行时控制面，允许暂停、恢复和手动终止 run。
+- `pauseRun / resumeRun / terminateRun`：运行时控制面，允许暂停、恢复和手动终止 run。这些控制 API 需要调用方传入 **definition**，因为 runtime 需要校验 `sop_id`/`version` 是否与 run state 匹配，并继续执行 definition-level 策略（如 `max_run_secs`）。v1-alpha 不内置 definition registry，因此调用方必须在每个控制请求中携带 definition。
 - `runUntilComplete(params)`：循环调用上面动作，直到 run 进入 `terminated`。
 
 主流程如下：
@@ -287,7 +287,25 @@ RuntimeHost 在执行动作前会检查：
 | 文件 | 作用 |
 | --- | --- |
 | [`src/index.test.ts`](./src/index.test.ts) | 验证公共入口导出核心端口和类型。 |
-| [`src/runtime_host.test.ts`](./src/runtime_host.test.ts) | 覆盖 host 主流程、启动策略、超时、终止事件、错误分支。 |
+| [`src/runtime_host_lifecycle.test.ts`](./src/runtime_host_lifecycle.test.ts) | 覆盖 host 主生命周期：startRun、runUntilComplete、terminated。 |
+| [`src/runtime_host_policy.test.ts`](./src/runtime_host_policy.test.ts) | 覆盖启动策略：idempotent_replay、singleflight、cooldown、run id 冲突。 |
+| [`src/runtime_host_control_decision.test.ts`](./src/runtime_host_control_decision.test.ts) | 覆盖 pauseRun、resumeRun、terminateRun、decideOutcome 的控制面行为。 |
+| [`src/runtime_host_deadline.test.ts`](./src/runtime_host_deadline.test.ts) | 覆盖 max_run_secs 超时检查的多次边界验证。 |
+| [`src/runtime_host_executor_dispatch.test.ts`](./src/runtime_host_executor_dispatch.test.ts) | 覆盖 executor 注册、未注册拒绝、kind+name 匹配。 |
+| [`src/runtime_host_executor_isolation.test.ts`](./src/runtime_host_executor_isolation.test.ts) | 覆盖 handler 输入隔离副本和原地修改不影响 core 判定。 |
+| [`src/runtime_host_current_step_paused.test.ts`](./src/runtime_host_current_step_paused.test.ts) | 覆盖 paused run 的 getCurrentStep 行为。 |
+| [`src/hook_pipeline_before_rewrite.test.ts`](./src/hook_pipeline_before_rewrite.test.ts) | 覆盖 beforeStep 改写 inputs/config。 |
+| [`src/hook_pipeline_before_control.test.ts`](./src/hook_pipeline_before_control.test.ts) | 覆盖 beforeStep 的 pause/terminate control。 |
+| [`src/hook_pipeline_before_invalid.test.ts`](./src/hook_pipeline_before_invalid.test.ts) | 覆盖 beforeStep 返回值非法时的拒绝。 |
+| [`src/hook_pipeline_after_result.test.ts`](./src/hook_pipeline_after_result.test.ts) | 覆盖 afterStep 改写 result 字段。 |
+| [`src/hook_pipeline_after_control.test.ts`](./src/hook_pipeline_after_control.test.ts) | 覆盖 afterStep 的 pause/terminate control 以及 max_run_secs 优先。 |
+| [`src/hook_pipeline_after_invalid_control.test.ts`](./src/hook_pipeline_after_invalid_control.test.ts) | 覆盖 afterStep 非法结构不会被 resource enforcement 洗白。 |
+| [`src/hook_pipeline_payload.test.ts`](./src/hook_pipeline_payload.test.ts) | 覆盖 hook 的深拷贝隔离和 JSON-safe 校验。 |
+| [`src/executor_enforcer.test.ts`](./src/executor_enforcer.test.ts) | 覆盖 executor timeout 包装和 resource_limits 检查（max_output_bytes / max_artifacts）。 |
+| [`src/tool_dispatch.test.ts`](./src/tool_dispatch.test.ts) | 覆盖 ToolRegistryExecutor 的 sandbox_tool 分发（legacy）。 |
+| [`src/tool_error_handling.test.ts`](./src/tool_error_handling.test.ts) | 覆盖 ToolRegistryExecutor 的异常处理（legacy）。 |
+| [`src/tool_integration.test.ts`](./src/tool_integration.test.ts) | 覆盖 ToolRegistryExecutor 的集成测试（legacy）。 |
+| [`src/tool_resource_limits.test.ts`](./src/tool_resource_limits.test.ts) | 覆盖 ToolRegistryExecutor 的资源上限（legacy）。 |
 
 ## 推荐阅读顺序
 
@@ -297,7 +315,7 @@ RuntimeHost 在执行动作前会检查：
 2. 本 README 的“最小使用示例”
 3. [`src/step_executor.ts`](./src/step_executor.ts)
 4. [`src/runtime_host.ts`](./src/runtime_host.ts)
-5. [`src/runtime_host.test.ts`](./src/runtime_host.test.ts)
+5. [`src/runtime_host_lifecycle.test.ts`](./src/runtime_host_lifecycle.test.ts)
 
 ### 如果你要实现自定义 store
 

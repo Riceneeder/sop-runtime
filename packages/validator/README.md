@@ -80,23 +80,46 @@ if (!result.ok) {
 
 ### 源码与配置文件
 
-| 文件                                                             | 作用                                                    | 直接依赖                                             | 谁会依赖它                                                                   |
-| -------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
-| [`package.json`](./package.json)                               | 定义包名、模块类型，并声明对 `@sop-runtime/definition` 的 workspace 依赖。 | 无                                                | 包管理器、工作区解析                                                              |
-| [`tsconfig.json`](./tsconfig.json)                             | 指定构建输入输出目录，并通过 `references` 声明对 definition 包的编译依赖。    | 根 `tsconfig.base.json`、`../definition`           | TypeScript 构建                                                           |
-| [`src/index.ts`](./src/index.ts)                               | 公共入口，只重新导出顶层校验 API 和诊断类型。                             | `diagnostic.ts`、`validate_definition.ts`         | 外部调用者、测试                                                                |
-| [`src/diagnostic.ts`](./src/diagnostic.ts)                     | 定义 `Diagnostic` 与 `ValidationResult`，统一所有校验阶段的输出形状。   | 无                                                | `validate_definition.ts`、各校验器、`index.ts`                                |
-| [`src/path.ts`](./src/path.ts)                                 | 把嵌套对象位置格式化为稳定的诊断路径字符串。                                | 无                                                | `schema_validator.ts`、`semantic_validator.ts`、`expression_validator.ts` |
-| [`src/schema_validator.ts`](./src/schema_validator.ts)         | 负责结构层校验，包括字段白名单、类型、枚举、正则和最小约束。                        | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts` | `validate_definition.ts`                                                |
-| [`src/semantic_validator.ts`](./src/semantic_validator.ts)     | 负责语义层校验，包括步骤图、outcome 和 transition 之间的关系。             | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts` | `validate_definition.ts`                                                |
-| [`src/expression_validator.ts`](./src/expression_validator.ts) | 负责模板表达式校验，复用 definition 包里的表达式解析器和 AST。               | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts` | `validate_definition.ts`                                                |
-| [`src/validate_definition.ts`](./src/validate_definition.ts)   | 顶层编排器；按固定顺序串联三类校验并汇总结果。                               | `@sop-runtime/definition`、`diagnostic.ts`、三个子校验器    | `index.ts`                                                              |
+| 文件                                                                     | 作用                                                           | 直接依赖                                                  | 谁会依赖它                                                  |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------ |
+| [`package.json`](./package.json)                                       | 定义包名、模块类型，并声明对 `@sop-runtime/definition` 的 workspace 依赖。     | 无                                                     | 包管理器、工作区解析                                              |
+| [`tsconfig.json`](./tsconfig.json)                                     | 指定构建输入输出目录，并通过 `references` 声明对 definition 包的编译依赖。         | 根 `tsconfig.base.json`、`../definition`                | TypeScript 构建                                            |
+| [`src/index.ts`](./src/index.ts)                                       | 公共入口，只重新导出顶层校验 API 和诊断类型。                                | `diagnostic.ts`、`validate_definition.ts`              | 外部调用者、测试                                               |
+| [`src/diagnostic.ts`](./src/diagnostic.ts)                             | 定义 `Diagnostic` 与 `ValidationResult`，统一所有校验阶段的输出形状。        | 无                                                     | `validate_definition.ts`、各校验器、`index.ts`                 |
+| [`src/path.ts`](./src/path.ts)                                         | 把嵌套对象位置格式化为稳定的诊断路径字符串。                                   | 无                                                     | 各校验模块                                                    |
+| [`src/schema_validator.ts`](./src/schema_validator.ts)                 | 结构层校验的公共门面，委托给 `schema_sections.ts`、`schema_require.ts`、`schema_keys.ts` 等专门模块。 | `@sop-runtime/definition`、`diagnostic.ts`、`schema_sections.ts` | `validate_definition.ts`                                   |
+| [`src/schema_sections.ts`](./src/schema_sections.ts)                   | 按 definition 的顶层区域（root、policies、steps、final_output）分段校验。  | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts`、`schema_keys.ts`、`schema_require.ts`、`schema_type_detect.ts`、`schema_step_details.ts` | `schema_validator.ts`                                      |
+| [`src/schema_keys.ts`](./src/schema_keys.ts)                           | 定义各层级的字段白名单和必填集合。                                         | `@sop-runtime/definition`                             | `schema_sections.ts`                                       |
+| [`src/schema_require.ts`](./src/schema_require.ts)                     | Required 字段校验辅助。                                            | `diagnostic.ts`、`path.ts`                            | `schema_sections.ts`                                       |
+| [`src/schema_type_detect.ts`](./src/schema_type_detect.ts)             | 基础类型检测（string、number、object、array、boolean）。                | 无                                                     | `schema_sections.ts`                                       |
+| [`src/schema_path_resolver.ts`](./src/schema_path_resolver.ts)         | 在嵌套 definition 对象中按路径查找字段值。                                | 无                                                     | `schema_sections.ts`                                       |
+| [`src/schema_step_details.ts`](./src/schema_step_details.ts)           | Step 内部详细字段的结构校验。                                          | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts`、`schema_keys.ts` | `schema_sections.ts`                                       |
+| [`src/semantic_validator.ts`](./src/semantic_validator.ts)             | 负责语义层校验，包括步骤图、outcome 和 transition 之间的关系。                | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts` | `validate_definition.ts`                                   |
+| [`src/expression_validator.ts`](./src/expression_validator.ts)         | 表达式校验的公共门面，委托给 `expression_reference_validator.ts`、`expression_template_walk.ts`、`step_reachability.ts`。 | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts`、`expression_reference_validator.ts`、`expression_template_walk.ts`、`step_reachability.ts` | `validate_definition.ts`                                   |
+| [`src/expression_reference_validator.ts`](./src/expression_reference_validator.ts) | 校验模板表达式中的引用路径（run.input、steps.\<id\>.output、steps.\<id\>.artifacts）是否合法。 | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts` | `expression_validator.ts`                                  |
+| [`src/expression_template_walk.ts`](./src/expression_template_walk.ts) | 遍历 definition 字段中的模板字符串，调用解析器和引用校验器。                     | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts`、`expression_reference_validator.ts` | `expression_validator.ts`                                   |
+| [`src/step_reachability.ts`](./src/step_reachability.ts)               | 计算从 entry_step 出发可达的步骤集合，供 expression validator 过滤 final_output 引用。 | `@sop-runtime/definition`                            | `expression_validator.ts`                                   |
+| [`src/runtime_schema_validator.ts`](./src/runtime_schema_validator.ts) | 运行时 JSON Schema 子集校验入口，校验运行时输入/输出/result 是否符合 definition 中的 schema 声明。 | `@sop-runtime/definition`、`diagnostic.ts`、`path.ts`、`runtime_type_validators.ts`、`runtime_value_validators.ts` | `@sop-runtime/core`                                        |
+| [`src/runtime_type_validators.ts`](./src/runtime_type_validators.ts)   | JSON Schema 类型匹配的运行时实现（type check、enum、required、pattern 等）。 | `@sop-runtime/definition`                             | `runtime_schema_validator.ts`                               |
+| [`src/runtime_value_validators.ts`](./src/runtime_value_validators.ts) | 运行时值校验的便捷函数（`validateRuntimeValue`）。                          | `@sop-runtime/definition`、`runtime_schema_validator.ts` | `@sop-runtime/core`                                        |
+| [`src/validate_definition.ts`](./src/validate_definition.ts)           | 顶层编排器；按固定顺序串联三类校验并汇总结果。                                 | `@sop-runtime/definition`、`diagnostic.ts`、三个子校验器       | `index.ts`                                                 |
 
 ### 测试文件
 
-| 文件                                         | 作用         | 关注点                     |
-| ------------------------------------------ | ---------- | ----------------------- |
-| [`src/index.test.ts`](./src/index.test.ts) | 覆盖整个包的主行为。 | 顶层入口、诊断路径、结构/语义/表达式三层校验 |
+| 文件                                                             | 作用         | 关注点                     |
+| -------------------------------------------------------------- | ---------- | ----------------------- |
+| [`src/index.test.ts`](./src/index.test.ts)                     | 验证公共入口导出核心类型。 | 顶层入口、诊断类型导出                                   |
+| [`src/validate_definition_schema.test.ts`](./src/validate_definition_schema.test.ts) | 结构层校验测试。 | 顶层字段、策略字段、执行器字段的结构校验 |
+| [`src/validate_definition_semantic.test.ts`](./src/validate_definition_semantic.test.ts) | 语义层校验测试。 | allowed_outcomes / transitions / entry_step 语义校验 |
+| [`src/validate_definition_expression.test.ts`](./src/validate_definition_expression.test.ts) | 表达式校验测试。 | 输入/输出字段引用、可达性、模板语法 |
+| [`src/validate_definition_executor.test.ts`](./src/validate_definition_executor.test.ts) | 执行器配置校验测试。 | executor kind/name/config、超时和环境约束 |
+| [`src/validate_definition_executor_expression.test.ts`](./src/validate_definition_executor_expression.test.ts) | 执行器相关表达式引用校验测试。 | exec config 中 expression 不做解释的行为 |
+| [`src/validate_definition_malformed.test.ts`](./src/validate_definition_malformed.test.ts) | 畸形输入鲁棒性测试。 | null、undefined、非对象输入、空数组、额外字段 |
+| [`src/validate_definition_reachability.test.ts`](./src/validate_definition_reachability.test.ts) | 步骤可达性校验测试。 | final_output 引用不可达步骤、分支路径可达性 |
+| [`src/validate_definition_schema_path.test.ts`](./src/validate_definition_schema_path.test.ts) | 诊断路径输出测试。 | 嵌套错误的 path 格式化和稳定性 |
+| [`src/validate_definition_step.test.ts`](./src/validate_definition_step.test.ts) | 步骤定义校验测试。 | step id 重复、缺失字段、output_schema 结构 |
+| [`src/runtime_schema_validator.test.ts`](./src/runtime_schema_validator.test.ts) | 运行时 schema 校验测试。 | 运行时输入/输出类型校验、enum/required/pattern 匹配 |
+| [`src/example_definition.test.ts`](./src/example_definition.test.ts) | 仓库级 example definition 通过性测试。 | `examples/basic_sop_definition.json` 通过 validateDefinition |
 
 ### 构建产物与缓存
 
@@ -108,20 +131,27 @@ if (!result.ok) {
 
 ## 依赖顺序
 
-这个包有一条很清晰的内部依赖链：
+这个包有一条较宽但清晰的内部依赖链：
 
 ```text
 diagnostic      path
    │             │
-   ├──────┬──────┤
-   │      │      │
-schema  semantic  expression
-   │      │         │
-   └──────┴─────────┘
-          │
+   ├──────┬──────┬──────────────────────┐
+   │      │      │                      │
+schema (facade)  semantic    expression (facade)
+   │              │              │
+schema_keys      (inline)   expression_reference_validator
+schema_require                expression_template_walk
+schema_type_detect            step_reachability
+schema_path_resolver
+schema_step_details           runtime_schema_validator
+schema_sections               runtime_type_validators
+   │                          runtime_value_validators
+   ├──────────┬───────────────┘
+   │          │
 validate_definition
-          │
-        index
+   │
+  index
 ```
 
 还要再叠加一层外部依赖：
@@ -130,7 +160,8 @@ validate_definition
 @sop-runtime/definition
 ├── 提供 SopDefinition 类型
 ├── 提供 RETRYABLE_STEP_RESULT_STATUSES
-└── 提供表达式解析器与错误类型
+├── 提供表达式解析器与错误类型
+└── 提供表达式 AST 类型
 ```
 
 ## 调用顺序
@@ -162,7 +193,7 @@ validate_definition
 1. [`src/index.ts`](./src/index.ts)
 2. [`src/diagnostic.ts`](./src/diagnostic.ts)
 3. [`src/validate_definition.ts`](./src/validate_definition.ts)
-4. [`src/index.test.ts`](./src/index.test.ts)
+4. 按需读按行为命名的测试文件（`validate_definition_schema.test.ts`、`validate_definition_semantic.test.ts` 等）
 
 这样可以先知道“怎么调用、会返回什么、整体流程是什么、测试怎样描述预期行为”。
 
@@ -172,25 +203,30 @@ validate_definition
 
 1. [`src/diagnostic.ts`](./src/diagnostic.ts)
 2. [`src/path.ts`](./src/path.ts)
-3. [`src/schema_validator.ts`](./src/schema_validator.ts)
+3. [`src/schema_validator.ts`](./src/schema_validator.ts) → 然后深入 `schema_sections.ts`、`schema_keys.ts`、`schema_require.ts` 等
 4. [`src/semantic_validator.ts`](./src/semantic_validator.ts)
-5. [`src/expression_validator.ts`](./src/expression_validator.ts)
+5. [`src/expression_validator.ts`](./src/expression_validator.ts) → 然后深入 `expression_reference_validator.ts`、`expression_template_walk.ts`、`step_reachability.ts`
 6. [`src/validate_definition.ts`](./src/validate_definition.ts)
 7. [`src/index.ts`](./src/index.ts)
-8. [`src/index.test.ts`](./src/index.test.ts)
+8. 按需读对应测试文件
 
-如果你还想理解表达式校验为什么这么做，建议在第 5 步之前先补读 [`packages/definition/src/expression.ts`](../definition/src/expression.ts) 和 [`packages/definition/src/sop_definition.ts`](../definition/src/sop_definition.ts)。
+如果你还想理解表达式校验为什么这么做，建议先补读 definition 包中的 [`expression_ast.ts`](../definition/src/expression_ast.ts)、[`expression_body_parser.ts`](../definition/src/expression_body_parser.ts) 和 [`sop_definition.ts`](../definition/src/sop_definition.ts)。
 
 ## 测试文件说明
 
-这个包目前只有一份主测试文件 [`src/index.test.ts`](./src/index.test.ts)，但它覆盖范围很广，基本就是整个包的行为说明书。它主要覆盖：
+validator 的测试文件按能力拆分为多个独立模块，形成行为说明书。主要覆盖：
 
-- 顶层与嵌套诊断路径是否稳定
-- 顶层字段、策略字段、执行器字段的结构校验
-- `allowed_outcomes` / `transitions` / `entry_step` 的语义校验
-- 表达式语法、输入字段引用、输出字段引用、可达性校验
+- **结构层**：顶层字段、策略字段、执行器字段的结构校验（`validate_definition_schema.test.ts`）
+- **语义层**：`allowed_outcomes` / `transitions` / `entry_step` 的语义校验（`validate_definition_semantic.test.ts`）
+- **表达式层**：输入字段引用、输出字段引用、模板语法错误（`validate_definition_expression.test.ts`）
+- **执行器层**：executor kind/name/config 校验（`validate_definition_executor.test.ts`）
+- **可达性**：final_output 引用不可达步骤（`validate_definition_reachability.test.ts`）
+- **畸形输入**：null、undefined、非对象输入等鲁棒性（`validate_definition_malformed.test.ts`）
+- **诊断路径**：嵌套错误的 path 格式化和稳定性（`validate_definition_schema_path.test.ts`）
+- **运行时校验**：运行时输入/输出/decision/result 的 schema 子集校验（`runtime_schema_validator.test.ts`）
+- **通过性**：仓库级 `examples/basic_sop_definition.json` 通过 validateDefinition（`example_definition.test.ts`）
 
-如果你想快速知道“系统认为哪些输入是非法的”，直接读这份测试最省时间。
+如果你想快速知道“系统认为哪些输入是非法的”，直接读按行为命名的测试文件最省时间。
 
 ## 与 `@sop-runtime/definition` 的关系
 
