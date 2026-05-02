@@ -132,6 +132,10 @@ function enforceOutputLimit(
   attempt: number,
   policy: InvalidPayloadPolicy,
 ): StepResult {
+  if (policy === 'preserve' && result.output !== undefined && !isJsonSafeObject(result.output)) {
+    return result;
+  }
+
   const outputSize = computeJsonUtf8Size(result.output ?? {});
 
   if (outputSize !== null) {
@@ -167,9 +171,48 @@ function enforceOutputLimit(
   };
 }
 
-function isStringRecord(value: unknown): value is Record<string, string> {
+function isStrictPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-  return Object.values(value).every((v) => typeof v === 'string');
+  const proto = Object.getPrototypeOf(value);
+  return proto === null || proto === Object.prototype;
+}
+
+function isJsonSafeValue(value: unknown, seen: Set<object>): boolean {
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (typeof value !== 'object') return false;
+
+  if (seen.has(value)) return false;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      if (!isJsonSafeValue(value[i], seen)) return false;
+    }
+    return true;
+  }
+
+  if (!isStrictPlainObject(value)) return false;
+
+  const entries = Object.entries(value);
+  for (const [, val] of entries) {
+    if (!isJsonSafeValue(val, seen)) return false;
+  }
+  return true;
+}
+
+function isJsonSafeObject(value: unknown): value is Record<string, unknown> {
+  if (!isStrictPlainObject(value)) return false;
+  const seen = new Set<object>([value]);
+  const entries = Object.entries(value);
+  for (const [, val] of entries) {
+    if (!isJsonSafeValue(val, seen)) return false;
+  }
+  return true;
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isStrictPlainObject(value) && Object.values(value).every((v) => typeof v === 'string');
 }
 
 function computeJsonUtf8Size(value: JsonObject): number | null {

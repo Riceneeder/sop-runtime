@@ -176,4 +176,32 @@ describe('enforceResourceLimits', () => {
     expect(enforced.status).toBe('sandbox_error');
     expect(enforced.error?.code).toBe('max_output_bytes_exceeded');
   });
+
+  test('preserve policy returns original result when output is a string', () => {
+    const result = buildSuccessResult({ 'output': 'x'.repeat(200) as never });
+    const enforced = enforceResourceLimits({
+      result,
+      resourceLimits: limits,
+      runId: 'run_001',
+      stepId: 'step_a',
+      attempt: 1,
+      'invalidPayloadPolicy': 'preserve',
+    });
+
+    expect(enforced).toBe(result);
+  });
+
+  test('preserve policy returns original result when output is an array', () => {
+    const result = buildSuccessResult({ 'output': ['x'.repeat(200)] as never });
+    const enforced = enforceResourceLimits({
+      result,
+      resourceLimits: limits,
+      runId: 'run_001',
+      stepId: 'step_a',
+      attempt: 1,
+      'invalidPayloadPolicy': 'preserve',
+    });
+
+    expect(enforced).toBe(result);
+  });
 });

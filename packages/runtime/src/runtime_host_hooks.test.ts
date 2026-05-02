@@ -909,11 +909,50 @@ describe('hook pipeline', () => {
     }
 
     expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).name).toBe('CoreError');
+    expect((caught as Error).message).toContain('Step result artifacts must be a string map');
     const reloaded = await store.loadRun(started.state.run_id);
     expect(reloaded?.accepted_results.step_a).toBeUndefined();
   });
 
-  test('afterStep non-JSON-safe output with preserve policy throws error (not sandbox_error)', async () => {
+  test('afterStep oversized string output with preserve policy throws CoreError (not sandbox_error)', async () => {
+    const store = new InMemoryStateStore();
+    const definition = buildDefinition();
+    definition.steps[0]!.executor.resource_limits.max_output_bytes = 20;
+    const host = new RuntimeHost({
+      store,
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+      'hooks': {
+        'afterStep': [(() => {
+          return {'result': {'output': 'x'.repeat(200)}};
+        }) as unknown as AfterStepHook],
+      },
+    });
+    host.registerExecutor('tool', 'default_tool', (input) => ({
+      'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+      'attempt': input.packet.attempt, 'status': 'success',
+      'output': {'summary': 'ok'},
+    }));
+
+    const started = await host.startRun({'definition': definition, 'input': {'company': 'Acme'}});
+
+    let caught: unknown;
+    try {
+      await host.runReadyStep({'definition': definition, 'runId': started.state.run_id});
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).name).toBe('CoreError');
+    expect((caught as Error).message).toContain('Step result output must be a JSON object');
+    const reloaded = await store.loadRun(started.state.run_id);
+    expect(reloaded?.accepted_results.step_a).toBeUndefined();
+  });
+
+  test('afterStep circular output with preserve policy is not converted to sandbox_error', async () => {
     const store = new InMemoryStateStore();
     const definition = buildDefinition();
     definition.steps[0]!.executor.resource_limits.max_output_bytes = 5000;
