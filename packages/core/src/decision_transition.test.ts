@@ -1,147 +1,6 @@
 import {describe, expect, test} from 'bun:test';
-import {SopDefinition} from '@sop-runtime/definition';
 import {CoreError, applyDecision, applyStepResult, createRun} from './index.js';
-
-function buildDefinition(): SopDefinition {
-  return {
-    'sop_id': 'decision_continue',
-    'name': 'Decision Continue',
-    'version': '1.0.0',
-    'entry_step': 'step_a',
-    'input_schema': {
-      'type': 'object',
-      'required': ['company'],
-      'properties': {
-        'company': {'type': 'string'},
-      },
-    },
-    'policies': {
-      'cooldown_secs': 0,
-      'max_run_secs': 60,
-      'idempotency_key_template': 'key',
-      'concurrency': {
-        'mode': 'singleflight',
-        'key_template': 'key',
-      },
-    },
-    'steps': [
-      {
-        'id': 'step_a',
-        'title': 'A',
-        'inputs': {},
-        'executor': {
-          'kind': 'tool',
-          'name': 'tool',
-          'config': { 'command_template': 'run', 'path': '/tmp' },
-          'timeout_secs': 120,
-          'allow_network': true,
-          'env': {},
-          'resource_limits': {
-            'max_output_bytes': 1024,
-            'max_artifacts': 1,
-          },
-        },
-        'output_schema': {
-          'type': 'object',
-          'required': ['summary'],
-          'properties': {
-            'summary': {'type': 'string'},
-          },
-        },
-        'retry_policy': {
-          'max_attempts': 2,
-          'backoff_secs': [],
-          'retry_on': ['tool_error'],
-        },
-        'supervision': {
-          'owner': 'main_agent',
-          'allowed_outcomes': [
-            {'id': 'continue', 'description': 'continue'},
-            {'id': 'retry', 'description': 'retry'},
-            {'id': 'fail_run', 'description': 'fail'},
-          ],
-          'default_outcome': 'continue',
-        },
-        'transitions': {
-          'continue': {'next_step': 'step_b'},
-          'retry': {'next_step': 'step_a'},
-          'fail_run': {
-            'terminate': {
-              'run_status': 'failed',
-              'reason': 'step_a_failed',
-            },
-          },
-        },
-      },
-      {
-        'id': 'step_b',
-        'title': 'B',
-        'inputs': {},
-        'executor': {
-          'kind': 'tool',
-          'name': 'tool',
-          'config': { 'command_template': 'run', 'path': '/tmp' },
-          'timeout_secs': 120,
-          'allow_network': true,
-          'env': {},
-          'resource_limits': {
-            'max_output_bytes': 1024,
-            'max_artifacts': 1,
-          },
-        },
-        'output_schema': {
-          'type': 'object',
-          'required': ['summary'],
-          'properties': {
-            'summary': {'type': 'string'},
-          },
-        },
-        'retry_policy': {
-          'max_attempts': 2,
-          'backoff_secs': [],
-          'retry_on': ['tool_error'],
-        },
-        'supervision': {
-          'owner': 'main_agent',
-          'allowed_outcomes': [
-            {'id': 'back', 'description': 'back'},
-            {'id': 'done', 'description': 'done'},
-          ],
-          'default_outcome': 'done',
-        },
-        'transitions': {
-          'back': {'next_step': 'step_a'},
-          'done': {
-            'terminate': {
-              'run_status': 'succeeded',
-              'reason': 'complete',
-            },
-          },
-        },
-      },
-    ],
-    'final_output': {'ok': true},
-  };
-}
-
-function runAwaitingDecision(definition: SopDefinition, status: 'success' | 'tool_error' = 'success') {
-  const state = createRun({
-    definition,
-    'input': {'company': 'Acme'},
-    'runId': 'run_001',
-  });
-  return applyStepResult({
-    definition,
-    state,
-    'stepResult': {
-      'run_id': 'run_001',
-      'step_id': 'step_a',
-      'attempt': 1,
-      status,
-      'output': status === 'success' ? {'summary': 'ok'} : undefined,
-    },
-  });
-}
+import {buildDefinition, runAwaitingDecision} from './apply_decision_test_helpers.js';
 
 describe('applyDecision', () => {
   test('continues to the next step and activates it', () => {
@@ -168,7 +27,7 @@ describe('applyDecision', () => {
 
   test('allows non-retry same-step loops on success and advances the attempt', () => {
     const definition = buildDefinition();
-    const sameStepContinueDefinition: SopDefinition = {
+    const sameStepContinueDefinition = {
       ...definition,
       'steps': definition.steps.map((step) => {
         if (step.id !== 'step_a') {
@@ -206,7 +65,7 @@ describe('applyDecision', () => {
 
   test('rejects success same-step loops when max_attempts is reached', () => {
     const definition = buildDefinition();
-    const sameStepContinueDefinition: SopDefinition = {
+    const sameStepContinueDefinition = {
       ...definition,
       'steps': definition.steps.map((step) => {
         if (step.id !== 'step_a') {
@@ -339,7 +198,7 @@ describe('applyDecision', () => {
 
   test('enforces retry policy for non-success same-step loops even when outcome is not named retry', () => {
     const definition = buildDefinition();
-    const sameStepRerunDefinition: SopDefinition = {
+    const sameStepRerunDefinition = {
       ...definition,
       'steps': definition.steps.map((step) => {
         if (step.id !== 'step_a') {
@@ -396,122 +255,5 @@ describe('applyDecision', () => {
     }
 
     expect((error as CoreError).code).toBe('decision_rejected');
-  });
-
-  test('uses cumulative attempts when re-entering a step via non-self transition and still supports termination', () => {
-    const definition = buildDefinition();
-    const stepAComplete = runAwaitingDecision(definition);
-    const onStepB = applyDecision({
-      definition,
-      'state': stepAComplete,
-      'decision': {
-        'run_id': 'run_001',
-        'step_id': 'step_a',
-        'attempt': 1,
-        'outcome_id': 'continue',
-      },
-    });
-    const stepBAwaiting = applyStepResult({
-      definition,
-      'state': onStepB,
-      'stepResult': {
-        'run_id': 'run_001',
-        'step_id': 'step_b',
-        'attempt': 1,
-        'status': 'success',
-        'output': {'summary': 'done'},
-      },
-    });
-    const backToStepA = applyDecision({
-      definition,
-      'state': stepBAwaiting,
-      'decision': {
-        'run_id': 'run_001',
-        'step_id': 'step_b',
-        'attempt': 1,
-        'outcome_id': 'back',
-      },
-    });
-
-    expect(backToStepA.current_step_id).toBe('step_a');
-    expect(backToStepA.current_attempt).toBe(2);
-    expect(backToStepA.steps.step_a?.attempt_count).toBe(2);
-
-    const failingAwait = runAwaitingDecision(definition, 'tool_error');
-    const terminated = applyDecision({
-      definition,
-      'state': failingAwait,
-      'decision': {
-        'run_id': 'run_001',
-        'step_id': 'step_a',
-        'attempt': 1,
-        'outcome_id': 'fail_run',
-      },
-      'now': '2026-04-20T12:20:00Z',
-    });
-
-    expect(terminated.phase).toBe('terminated');
-    expect(terminated.status).toBe('failed');
-    expect(terminated.current_step_id).toBeNull();
-    expect(terminated.current_attempt).toBeNull();
-    expect(terminated.terminal).toEqual({
-      'run_status': 'failed',
-      'reason': 'step_a_failed',
-    });
-    expect(terminated.history.at(-1)).toEqual({
-      'kind': 'run_terminated',
-      'run_status': 'failed',
-      'reason': 'step_a_failed',
-      'at': '2026-04-20T12:20:00Z',
-    });
-  });
-
-  test('rejects invalid outcomes', () => {
-    const definition = buildDefinition();
-    const awaitingDecision = runAwaitingDecision(definition);
-    let error: unknown;
-
-    try {
-      applyDecision({
-        definition,
-        'state': awaitingDecision,
-        'decision': {
-          'run_id': 'run_001',
-          'step_id': 'step_a',
-          'attempt': 1,
-          'outcome_id': 'missing',
-        },
-      });
-    } catch (caught) {
-      error = caught;
-    }
-
-    expect((error as CoreError).code).toBe('decision_rejected');
-  });
-
-  test('rejects a definition that does not match the persisted run SOP id/version', () => {
-    const definition = buildDefinition();
-    const awaitingDecision = runAwaitingDecision(definition);
-
-    let error: unknown;
-    try {
-      applyDecision({
-        'definition': {
-          ...definition,
-          'sop_id': 'other_definition',
-        },
-        'state': awaitingDecision,
-        'decision': {
-          'run_id': 'run_001',
-          'step_id': 'step_a',
-          'attempt': 1,
-          'outcome_id': 'continue',
-        },
-      });
-    } catch (caught) {
-      error = caught;
-    }
-
-    expect((error as CoreError).code).toBe('invalid_state');
   });
 });
