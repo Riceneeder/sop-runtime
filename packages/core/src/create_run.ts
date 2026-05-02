@@ -8,38 +8,8 @@ export function createRun(params: {
   runId: string;
   now?: string;
 }): RunState {
-  const validation = validateDefinition(params.definition);
-  if (!validation.ok) {
-    throw new CoreError('definition_invalid', {
-      'message': 'Definition validation failed.',
-      'diagnostics': validation.diagnostics,
-    });
-  }
-
-  const runInput = {
-    ...(params.definition.defaults ?? {}),
-    ...params.input,
-  };
-  const inputValidation = validateRuntimeValue({
-    'schema': params.definition.input_schema,
-    'value': runInput,
-    'path': 'run_input',
-  });
-  if (!inputValidation.ok) {
-    throw new CoreError('run_input_invalid', {
-      'message': 'Run input validation failed.',
-      'diagnostics': inputValidation.diagnostics,
-    });
-  }
-
-  const steps: Record<string, StepState> = {};
-  for (const step of params.definition.steps) {
-    steps[step.id] = {
-      'step_id': step.id,
-      'status': step.id === params.definition.entry_step ? 'active' : 'pending',
-      'attempt_count': step.id === params.definition.entry_step ? 1 : 0,
-    };
-  }
+  const runInput = validateAndMergeInput(params.definition, params.input);
+  const steps = buildInitialSteps(params.definition);
 
   return {
     'run_id': params.runId,
@@ -60,6 +30,46 @@ export function createRun(params: {
     'created_at': params.now,
     'updated_at': params.now,
   };
+}
+
+function validateAndMergeInput(definition: SopDefinition, input: JsonObject): JsonObject {
+  const validation = validateDefinition(definition);
+  if (!validation.ok) {
+    throw new CoreError('definition_invalid', {
+      'message': 'Definition validation failed.',
+      'diagnostics': validation.diagnostics,
+    });
+  }
+
+  const runInput = {
+    ...(definition.defaults ?? {}),
+    ...input,
+  };
+  const inputValidation = validateRuntimeValue({
+    'schema': definition.input_schema,
+    'value': runInput,
+    'path': 'run_input',
+  });
+  if (!inputValidation.ok) {
+    throw new CoreError('run_input_invalid', {
+      'message': 'Run input validation failed.',
+      'diagnostics': inputValidation.diagnostics,
+    });
+  }
+
+  return runInput;
+}
+
+function buildInitialSteps(definition: SopDefinition): Record<string, StepState> {
+  const steps: Record<string, StepState> = {};
+  for (const step of definition.steps) {
+    steps[step.id] = {
+      'step_id': step.id,
+      'status': step.id === definition.entry_step ? 'active' : 'pending',
+      'attempt_count': step.id === definition.entry_step ? 1 : 0,
+    };
+  }
+  return steps;
 }
 
 function buildRunCreatedHistory(params: {
