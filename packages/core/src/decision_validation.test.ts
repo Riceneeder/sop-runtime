@@ -23,7 +23,9 @@ describe('applyDecision validation', () => {
       error = caught;
     }
 
+    expect(error).toBeInstanceOf(CoreError);
     expect((error as CoreError).code).toBe('decision_rejected');
+    expect((error as CoreError).details?.outcome_id).toBe('missing');
   });
 
   test('rejects a definition that does not match the persisted run SOP id/version', () => {
@@ -49,6 +51,7 @@ describe('applyDecision validation', () => {
       error = caught;
     }
 
+    expect(error).toBeInstanceOf(CoreError);
     expect((error as CoreError).code).toBe('invalid_state');
   });
 });

@@ -2,7 +2,7 @@ import {describe, expect, test} from 'bun:test';
 import {validateDefinition} from './index.js';
 
 describe('validateDefinition (executor expression)', () => {
-  test('skips expression validation for executor command and prompt templates', () => {
+  test('executor.config is handler-owned opaque data', () => {
     const result = validateDefinition({
       'sop_id': 'expr_executor_skip',
       'name': 'Expr Executor Skip',
@@ -26,7 +26,7 @@ describe('validateDefinition (executor expression)', () => {
           'executor': {
             'kind': 'python',
           'name': 'python',
-          'config': { 'command_template': 'echo hello', 'path': '/tmp/workspace' },
+          'config': { 'command': 'echo hello', 'path': '/tmp/workspace' },
             'timeout_secs': 120,
             'allow_network': false,
             'env': {},
@@ -57,7 +57,7 @@ describe('validateDefinition (executor expression)', () => {
           'executor': {
             'kind': 'llm',
           'name': 'claude-opus-4-6',
-          'config': { 'model': 'claude-opus-4-6', 'prompt_template': 'Return this verbatim', 'path': '/tmp/workspace' },
+          'config': { 'option': 'summarize', 'prompt': 'Return this verbatim', 'path': '/tmp/workspace' },
             'timeout_secs': 120,
             'allow_network': false,
             'env': {},
@@ -116,7 +116,7 @@ describe('validateDefinition (executor expression)', () => {
         'executor': {
           'kind': 'web_search',
           'name': 'web_search',
-          'config': { 'command_template': 'Search ${run.input.company}', 'workspace_path': '${steps.missing.output.dir}' },
+          'config': { 'query': 'Search ${run.input.company}', 'output_dir': '${steps.missing.output.dir}' },
           'timeout_secs': 120,
           'allow_network': true,
           'env': {},
@@ -182,7 +182,7 @@ describe('validateDefinition (executor expression)', () => {
           'executor': {
             'kind': 'web_search',
           'name': 'web_search',
-          'config': { 'command_template': 'Search ${run.input.company}', 'path': '/tmp/workspace' },
+          'config': { 'query': 'Search ${run.input.company}', 'path': '/tmp/workspace' },
             'timeout_secs': 120,
             'allow_network': true,
             'env': {},
@@ -221,7 +221,7 @@ describe('validateDefinition (executor expression)', () => {
           'executor': {
             'kind': 'llm',
           'name': 'claude-opus-4-6',
-          'config': { 'model': 'claude-opus-4-6', 'prompt_template': 'Summarize ${steps.step_a.output.articles}', 'path': '/tmp/workspace' },
+          'config': { 'option': 'summarize', 'prompt': 'Summarize ${steps.step_a.output.articles}', 'path': '/tmp/workspace' },
             'timeout_secs': 120,
             'allow_network': false,
             'env': {},

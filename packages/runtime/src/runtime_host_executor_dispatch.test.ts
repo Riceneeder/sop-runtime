@@ -105,7 +105,7 @@ describe('RuntimeHost', () => {
     }
 
     // The CoreError from applyStepResult should propagate
-    expect(coreError).toBeDefined();
+    expect(coreError).toBeInstanceOf(Error);
     expect((coreError as Error).name).toBe('CoreError');
   });
 

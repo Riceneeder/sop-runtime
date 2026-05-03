@@ -15,8 +15,8 @@ import {
   SequentialIdGenerator,
 } from './runtime_host_test_helpers.js';
 
-describe('hook pipeline — invalid payloads', () => {
-  test('invalid hook control throws hook_rejected', async () => {
+describe('hook pipeline — invalid hook return boundary', () => {
+  test('invalid hook control throws hook_rejected (EXTERNAL BOUNDARY)', async () => {
     const store = new InMemoryStateStore();
     const host = new RuntimeHost({
       store,
@@ -48,7 +48,7 @@ describe('hook pipeline — invalid payloads', () => {
     expect((hookError as RuntimeError).code).toBe('hook_rejected');
   });
 
-  test('afterStep rejects state-machine fields at the top level', async () => {
+  test('afterStep rejects state-machine fields at the top level (EXTERNAL BOUNDARY)', async () => {
     const store = new InMemoryStateStore();
     const host = new RuntimeHost({
       store,
@@ -72,7 +72,7 @@ describe('hook pipeline — invalid payloads', () => {
     expect(error.details?.field).toBe('next_step');
   });
 
-  test('afterStep rejects unknown fields inside result patches', async () => {
+  test('afterStep rejects unknown fields inside result patches (EXTERNAL BOUNDARY)', async () => {
     const store = new InMemoryStateStore();
     const host = new RuntimeHost({
       store,
@@ -96,7 +96,7 @@ describe('hook pipeline — invalid payloads', () => {
     expect(error.details?.field).toBe('state');
   });
 
-  test('hook that throws produces hook_rejected with stage and index details', async () => {
+  test('hook that throws produces hook_rejected with stage and index details (EXTERNAL BOUNDARY)', async () => {
     const store = new InMemoryStateStore();
     const host = new RuntimeHost({
       store,
@@ -133,7 +133,123 @@ describe('hook pipeline — invalid payloads', () => {
     });
   });
 
-  test('afterStep non-record artifacts with preserve policy throws CoreError (not sandbox_error)', async () => {
+  test('afterStep result patch rejects run_id (EXTERNAL BOUNDARY)', async () => {
+    const store = new InMemoryStateStore();
+    const host = new RuntimeHost({
+      store,
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+      'hooks': {
+        'afterStep': [(() => {
+          return {'result': {'run_id': 'other_run'}};
+        }) as unknown as AfterStepHook],
+      },
+    });
+    registerDefaultExecutor(host);
+
+    const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+    const error = await expectRuntimeErrorCode(
+      () => host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id}),
+      'hook_rejected',
+    );
+
+    expect(error.details?.field).toBe('run_id');
+  });
+
+  test('afterStep result patch rejects step_id (EXTERNAL BOUNDARY)', async () => {
+    const store = new InMemoryStateStore();
+    const host = new RuntimeHost({
+      store,
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+      'hooks': {
+        'afterStep': [(() => {
+          return {'result': {'step_id': 'other_step'}};
+        }) as unknown as AfterStepHook],
+      },
+    });
+    registerDefaultExecutor(host);
+
+    const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+    const error = await expectRuntimeErrorCode(
+      () => host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id}),
+      'hook_rejected',
+    );
+
+    expect(error.details?.field).toBe('step_id');
+  });
+
+  test('afterStep result patch rejects attempt (EXTERNAL BOUNDARY)', async () => {
+    const store = new InMemoryStateStore();
+    const host = new RuntimeHost({
+      store,
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+      'hooks': {
+        'afterStep': [(() => {
+          return {'result': {'attempt': 999}};
+        }) as unknown as AfterStepHook],
+      },
+    });
+    registerDefaultExecutor(host);
+
+    const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+    const error = await expectRuntimeErrorCode(
+      () => host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id}),
+      'hook_rejected',
+    );
+
+    expect(error.details?.field).toBe('attempt');
+  });
+
+  test('core rejects hook-modified result with invalid status so hook control does not take effect (EXTERNAL BOUNDARY)', async () => {
+    const store = new InMemoryStateStore();
+    const host = new RuntimeHost({
+      store,
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+      'hooks': {
+        'afterStep': [() => {
+          // Set status to 'invalid_output' which is NOT in EXECUTOR_RESULT_STATUSES
+          // Core's validateStepResultShape will reject it, and the hook's control
+          // (pause) must NOT take effect because core rejected the result
+          // Cast needed: 'invalid_output' is deliberately not in AfterStepHook's return type
+          return {'result': {'status': 'invalid_output' as never}, 'control': {'action': 'pause', 'reason': 'should not apply'}};
+        }],
+      },
+    });
+    host.registerExecutor('tool', 'default_tool', (input) => ({
+      'run_id': input.packet.run_id, 'step_id': input.packet.step_id,
+      'attempt': input.packet.attempt, 'status': 'success',
+      'output': {'summary': 'ok'},
+    }));
+
+    const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
+
+    let caught: unknown;
+    try {
+      await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
+    } catch (err) {
+      caught = err;
+    }
+
+    // CoreError should propagate (result with invalid status is rejected by core)
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).name).toBe('CoreError');
+    expect((caught as Error).message).toContain('Step result status is not supported');
+
+    // Verify store state was NOT modified with the hook's control action
+    const reloaded = await store.loadRun(started.state.run_id);
+    expect(reloaded?.phase).toBe('ready');
+    expect(reloaded?.pause).toBeUndefined();
+    expect(reloaded?.status).toBe('running');
+  });
+
+  test('afterStep non-record artifacts with preserve policy throws CoreError (not sandbox_error) (EXTERNAL BOUNDARY)', async () => {
     const store = new InMemoryStateStore();
     const definition = buildDefinition();
     definition.steps[0]!.executor.resource_limits.max_artifacts = 1;
@@ -170,7 +286,7 @@ describe('hook pipeline — invalid payloads', () => {
     expect(reloaded?.accepted_results.step_a).toBeUndefined();
   });
 
-  test('afterStep oversized string output with preserve policy throws CoreError (not sandbox_error)', async () => {
+  test('afterStep oversized string output with preserve policy throws CoreError (not sandbox_error) (EXTERNAL BOUNDARY)', async () => {
     const store = new InMemoryStateStore();
     const definition = buildDefinition();
     definition.steps[0]!.executor.resource_limits.max_output_bytes = 20;
@@ -207,7 +323,7 @@ describe('hook pipeline — invalid payloads', () => {
     expect(reloaded?.accepted_results.step_a).toBeUndefined();
   });
 
-  test('afterStep circular output with preserve policy is not converted to sandbox_error', async () => {
+  test('afterStep circular output with preserve policy is not converted to sandbox_error (EXTERNAL BOUNDARY)', async () => {
     const store = new InMemoryStateStore();
     const definition = buildDefinition();
     definition.steps[0]!.executor.resource_limits.max_output_bytes = 5000;

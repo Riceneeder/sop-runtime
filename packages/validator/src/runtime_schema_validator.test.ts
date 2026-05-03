@@ -114,13 +114,9 @@ describe('validateRuntimeValue', () => {
     ]));
   });
 
-  test('keeps unsupported keywords and malformed keyword values permissive', () => {
+  test('ignores unsupported schema keywords', () => {
     const result = validateRuntimeValue({
       'schema': {
-        'type': 'object',
-        'properties': 'not-an-object',
-        'required': 'not-an-array',
-        'minimum': 'not-a-number',
         'not': {'type': 'null'},
         'patternProperties': {
           '^x': {'type': 'string'},
@@ -130,5 +126,53 @@ describe('validateRuntimeValue', () => {
     });
 
     expect(result).toEqual({'ok': true, 'diagnostics': []});
+  });
+
+  test('reports malformed supported schema keyword values', () => {
+    const result = validateRuntimeValue({
+      'schema': {
+        'type': 'object',
+        'properties': 'not-an-object',
+        'required': 'not-an-array',
+        'minimum': 'not-a-number',
+      },
+      'value': {'x': 123},
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({'code': 'schema_type', 'path': 'properties'}),
+      expect.objectContaining({'code': 'schema_type', 'path': 'required'}),
+      expect.objectContaining({'code': 'schema_type', 'path': 'minimum'}),
+    ]));
+  });
+
+  test('reports malformed nested and array schema keywords', () => {
+    const result = validateRuntimeValue({
+      'schema': {
+        'type': ['object', 'unknown'],
+        'properties': {
+          'items': {
+            'type': 'array',
+            'items': ['not-object'],
+            'minItems': -1,
+          },
+          'extra': false,
+        },
+        'additionalProperties': 123,
+        'minLength': 'bad',
+      },
+      'value': {'items': []},
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({'code': 'schema_enum', 'path': 'type.1'}),
+      expect.objectContaining({'code': 'schema_type', 'path': 'properties.items.items.0'}),
+      expect.objectContaining({'code': 'schema_minimum', 'path': 'properties.items.minItems'}),
+      expect.objectContaining({'code': 'schema_type', 'path': 'properties.extra'}),
+      expect.objectContaining({'code': 'schema_type', 'path': 'additionalProperties'}),
+      expect.objectContaining({'code': 'schema_type', 'path': 'minLength'}),
+    ]));
   });
 });

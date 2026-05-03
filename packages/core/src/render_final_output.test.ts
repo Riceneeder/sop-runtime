@@ -167,6 +167,7 @@ describe('renderFinalOutput', () => {
       missingError = caught;
     }
 
+    expect(phaseError).toBeInstanceOf(CoreError);
     expect((phaseError as CoreError).code).toBe('invalid_state');
     expect((missingError as CoreError).code).toBe('expression_evaluation_failed');
   });

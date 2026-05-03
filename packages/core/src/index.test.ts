@@ -124,4 +124,19 @@ describe('core package', () => {
     expect(error).toBeInstanceOf(CoreError);
     expect((error as CoreError).code).toBe('invalid_state');
   });
+
+  test('getCurrentStep returns null for terminated run', () => {
+    const state = {
+      ...createRun({
+        definition,
+        'input': {'company': 'Acme'},
+        'runId': 'run_001',
+      }),
+      'phase': 'terminated' as const,
+      'current_step_id': null,
+      'current_attempt': null,
+    };
+
+    expect(getCurrentStep({definition, state})).toBeNull();
+  });
 });

@@ -12,7 +12,7 @@ import {
   SequentialIdGenerator,
 } from './runtime_host_test_helpers.js';
 
-describe('hook pipeline — afterStep invalid control validation', () => {
+describe('hook pipeline — afterStep invalid hook return boundary', () => {
   const invalidControlCases: {
     name: string;
     hook: () => { control: unknown };
@@ -32,7 +32,7 @@ describe('hook pipeline — afterStep invalid control validation', () => {
   ];
 
   for (const scenario of invalidControlCases) {
-    test(`afterStep invalid control: ${scenario.name}`, async () => {
+    test(`afterStep invalid control: ${scenario.name} (EXTERNAL BOUNDARY)`, async () => {
       const store = new InMemoryStateStore();
       const host = new RuntimeHost({
         store,

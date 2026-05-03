@@ -1,6 +1,17 @@
 import {describe, expect, test} from 'bun:test';
-import {ToolRegistryExecutor} from './index.js';
+import {
+  DefaultDecisionProvider,
+  InMemoryStateStore,
+  RuntimeHost,
+  RuntimeStepPacket,
+  ToolRegistryExecutor,
+} from './index.js';
 import {buildPacket, expectResultIdentity} from './tool_registry_test_helpers.js';
+import {
+  buildDefinition,
+  FixedClock,
+  SequentialIdGenerator,
+} from './runtime_host_test_helpers.js';
 
 describe('ToolRegistryExecutor dispatch', () => {
   test('calls a registered sandbox_tool handler', async () => {
@@ -73,7 +84,7 @@ describe('ToolRegistryExecutor dispatch', () => {
     expectResultIdentity(result, packet);
   });
 
-  test('returns tool_error for sandbox_script', async () => {
+  test('rejects executor kind "bash" as unsupported', async () => {
     const executor = new ToolRegistryExecutor({'handlers': {}});
     const packet = buildPacket({
       'executor': {
@@ -97,7 +108,7 @@ describe('ToolRegistryExecutor dispatch', () => {
     expectResultIdentity(result, packet);
   });
 
-  test('returns tool_error for sandbox_model', async () => {
+  test('rejects executor kind "llm" as unsupported', async () => {
     const executor = new ToolRegistryExecutor({'handlers': {}});
     const packet = buildPacket({
       'executor': {
@@ -149,5 +160,43 @@ describe('ToolRegistryExecutor dispatch', () => {
 
     expect(result.status).toBe('success');
     expect(result.artifacts).toEqual({});
+  });
+
+  test('missing output (defaulted to {}) does not fake business success — RuntimeHost integration', async () => {
+    // When ToolRegistryExecutor defaults missing output to {}, and the step's
+    // output_schema has required fields (like 'summary'), core's applyStepResult
+    // must reject it as invalid_output rather than treating it as a successful
+    // business output.
+    const store = new InMemoryStateStore();
+    const host = new RuntimeHost({
+      store,
+      'decisionProvider': new DefaultDecisionProvider(),
+      'clock': new FixedClock('2026-04-20T12:00:00.000Z'),
+      'idGenerator': new SequentialIdGenerator(),
+    });
+
+    const toolExecutor = new ToolRegistryExecutor({
+      'handlers': {
+        default_tool: async () => ({
+          'artifacts': {'report': '/tmp/report.txt'},
+          // intentionally no 'output' — ToolRegistryExecutor defaults to {}
+        }),
+      },
+    });
+
+    // ToolRegistryExecutor only handles kind === 'sandbox_tool'
+    host.registerExecutor('sandbox_tool', 'default_tool', (input) =>
+      toolExecutor.execute(input.packet as RuntimeStepPacket),
+    );
+
+    // buildDefinition already has output_schema: { type: 'object', required: ['summary'] }
+    const definition = buildDefinition();
+    definition.steps[0]!.executor.kind = 'sandbox_tool';
+    const started = await host.startRun({'definition': definition, 'input': {'company': 'Acme'}});
+    const state = await host.runReadyStep({'definition': definition, 'runId': started.state.run_id});
+
+    // The empty default output {} does not satisfy required field 'summary'
+    expect(state.accepted_results.step_a?.status).toBe('invalid_output');
+    expect(state.accepted_results.step_a?.output).toBeUndefined();
   });
 });

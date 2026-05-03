@@ -235,7 +235,7 @@ describe('hook pipeline — afterStep control', () => {
     const started = await host.startRun({'definition': buildDefinition(), 'input': {'company': 'Acme'}});
     const state = await host.runReadyStep({'definition': buildDefinition(), 'runId': started.state.run_id});
 
-    expect(state.accepted_results.step_a).toBeDefined();
+    expect(state.accepted_results.step_a?.status).toBe('success');
     expect(state.phase).toBe('terminated');
     expect(state.status).toBe('failed');
     expect(state.terminal?.reason).toBe('second hook terminate');

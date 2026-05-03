@@ -38,8 +38,12 @@ describe('applyDecision termination transitions', () => {
       },
     });
 
+    expect(backToStepA.status).toBe('running');
+    expect(backToStepA.phase).toBe('ready');
     expect(backToStepA.current_step_id).toBe('step_a');
     expect(backToStepA.current_attempt).toBe(2);
+    expect(backToStepA.steps.step_b?.status).toBe('completed');
+    expect(backToStepA.steps.step_a?.status).toBe('active');
     expect(backToStepA.steps.step_a?.attempt_count).toBe(2);
 
     const failingAwait = runAwaitingDecision(definition, 'tool_error');
@@ -55,13 +59,21 @@ describe('applyDecision termination transitions', () => {
       'now': '2026-04-20T12:20:00Z',
     });
 
-    expect(terminated.phase).toBe('terminated');
     expect(terminated.status).toBe('failed');
+    expect(terminated.phase).toBe('terminated');
     expect(terminated.current_step_id).toBeNull();
     expect(terminated.current_attempt).toBeNull();
+    expect(terminated.steps.step_a?.status).toBe('failed');
     expect(terminated.terminal).toEqual({
       'run_status': 'failed',
       'reason': 'step_a_failed',
+    });
+    expect(terminated.history.at(-2)).toEqual({
+      'kind': 'decision_applied',
+      'step_id': 'step_a',
+      'attempt': 1,
+      'outcome_id': 'fail_run',
+      'at': '2026-04-20T12:20:00Z',
     });
     expect(terminated.history.at(-1)).toEqual({
       'kind': 'run_terminated',

@@ -24,11 +24,21 @@ describe('applyStepResult normalization', () => {
       'now': '2026-04-20T12:10:00Z',
     });
 
+    expect(nextState.status).toBe('running');
     expect(nextState.phase).toBe('awaiting_decision');
+    expect(nextState.current_step_id).toBe('step_a');
+    expect(nextState.current_attempt).toBe(1);
     expect(nextState.steps.step_a?.status).toBe('waiting_decision');
     expect(nextState.steps.step_a?.last_result_status).toBe('success');
     expect(nextState.accepted_results.step_a?.status).toBe('success');
     expect(nextState.updated_at).toBe('2026-04-20T12:10:00Z');
+    expect(nextState.history.at(-1)).toEqual({
+      'kind': 'step_result_accepted',
+      'step_id': 'step_a',
+      'attempt': 1,
+      'result_status': 'success',
+      'at': '2026-04-20T12:10:00Z',
+    });
   });
 
   test('normalizes invalid success output into invalid_output', () => {

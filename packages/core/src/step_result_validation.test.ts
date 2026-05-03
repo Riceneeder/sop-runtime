@@ -44,7 +44,9 @@ describe('applyStepResult validation', () => {
       extraFieldError = caught;
     }
 
+    expect(staleError).toBeInstanceOf(CoreError);
     expect((staleError as CoreError).code).toBe('step_result_rejected');
+    expect(extraFieldError).toBeInstanceOf(CoreError);
     expect((extraFieldError as CoreError).code).toBe('step_result_rejected');
   });
 
@@ -75,6 +77,7 @@ describe('applyStepResult validation', () => {
       error = caught;
     }
 
+    expect(error).toBeInstanceOf(CoreError);
     expect((error as CoreError).code).toBe('invalid_state');
   });
 
@@ -124,7 +127,9 @@ describe('applyStepResult validation', () => {
       metricsError = caught;
     }
 
+    expect(outputError).toBeInstanceOf(CoreError);
     expect((outputError as CoreError).code).toBe('step_result_rejected');
+    expect(metricsError).toBeInstanceOf(CoreError);
     expect((metricsError as CoreError).code).toBe('step_result_rejected');
   });
 
@@ -163,6 +168,7 @@ describe('applyStepResult validation', () => {
       error = caught;
     }
 
+    expect(error).toBeInstanceOf(CoreError);
     expect((error as CoreError).code).toBe('invalid_state');
   });
 });

@@ -2,7 +2,7 @@ import {describe, expect, test} from 'bun:test';
 import {validateDefinition} from './index.js';
 
 describe('validateDefinition (executor)', () => {
-  test('reports invalid executor shape and conditional fields', () => {
+  test('reports invalid executor shape and field types', () => {
     const result = validateDefinition({
       'sop_id': 'valid_id',
       'name': 'Valid',
@@ -52,26 +52,27 @@ describe('validateDefinition (executor)', () => {
     } as never);
 
     expect(result.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({'path': 'steps.0.title'}),
-      expect.objectContaining({'path': 'steps.0.executor.kind'}),
-      expect.objectContaining({'path': 'steps.0.executor.name'}),
-      expect.objectContaining({'path': 'steps.0.executor.config'}),
-      expect.objectContaining({'path': 'steps.0.executor.extra_field'}),
-      expect.objectContaining({'path': 'steps.0.executor.timeout_secs'}),
-      expect.objectContaining({'path': 'steps.0.executor.allow_network'}),
-      expect.objectContaining({'path': 'steps.0.executor.env.TOKEN'}),
-      expect.objectContaining({'path': 'steps.0.executor.resource_limits.max_output_bytes'}),
-      expect.objectContaining({'path': 'steps.0.retry_policy.max_attempts'}),
-      expect.objectContaining({'path': 'steps.0.retry_policy.backoff_secs.0'}),
-      expect.objectContaining({'path': 'steps.0.retry_policy.retry_on.0'}),
-      expect.objectContaining({'path': 'steps.0.supervision.owner'}),
-      expect.objectContaining({'path': 'steps.0.supervision.allowed_outcomes'}),
-      expect.objectContaining({'path': 'steps.0.supervision.default_outcome'}),
-      expect.objectContaining({'path': 'steps.0.transitions'}),
+      expect.objectContaining({'code': 'schema_min_length', 'path': 'steps.0.title'}),
+      expect.objectContaining({'code': 'schema_min_length', 'path': 'steps.0.executor.kind'}),
+      expect.objectContaining({'code': 'schema_min_length', 'path': 'steps.0.executor.name'}),
+      expect.objectContaining({'code': 'schema_type', 'path': 'steps.0.executor.config'}),
+      expect.objectContaining({'code': 'schema_additional_property', 'path': 'steps.0.executor.extra_field'}),
+      expect.objectContaining({'code': 'schema_minimum', 'path': 'steps.0.executor.timeout_secs'}),
+      expect.objectContaining({'code': 'schema_type', 'path': 'steps.0.executor.allow_network'}),
+      expect.objectContaining({'code': 'schema_type', 'path': 'steps.0.executor.env.TOKEN'}),
+      expect.objectContaining({'code': 'schema_minimum', 'path': 'steps.0.executor.resource_limits.max_output_bytes'}),
+      expect.objectContaining({'code': 'schema_minimum', 'path': 'steps.0.executor.resource_limits.max_artifacts'}),
+      expect.objectContaining({'code': 'schema_minimum', 'path': 'steps.0.retry_policy.max_attempts'}),
+      expect.objectContaining({'code': 'schema_minimum', 'path': 'steps.0.retry_policy.backoff_secs.0'}),
+      expect.objectContaining({'code': 'schema_enum', 'path': 'steps.0.retry_policy.retry_on.0'}),
+      expect.objectContaining({'code': 'schema_enum', 'path': 'steps.0.supervision.owner'}),
+      expect.objectContaining({'code': 'schema_min_items', 'path': 'steps.0.supervision.allowed_outcomes'}),
+      expect.objectContaining({'code': 'schema_min_length', 'path': 'steps.0.supervision.default_outcome'}),
+      expect.objectContaining({'code': 'schema_min_properties', 'path': 'steps.0.transitions'}),
     ]));
   });
 
-  test('validates opposite-branch executor fields when they are present', () => {
+  test('validates executor unknown additional properties', () => {
     const result = validateDefinition({
       'sop_id': 'mixed_executor_fields',
       'name': 'Mixed Executor Fields',
@@ -95,7 +96,7 @@ describe('validateDefinition (executor)', () => {
           'executor': {
             'kind': 'web_search',
             'name': 'web_search',
-            'config': { 'command_template': 'Search' },
+            'config': { 'option': 'web', 'method': 'GET' },
             'unknown_field': 123 as never,
             'timeout_secs': 120,
             'allow_network': true,
@@ -127,7 +128,7 @@ describe('validateDefinition (executor)', () => {
           'executor': {
             'kind': 'llm',
             'name': 'claude-opus-4-6',
-            'config': { 'model': 'claude-opus-4-6', 'prompt_template': 'Summarize' },
+            'config': { 'option': 'summarize', 'format': 'text' },
             'extra_key': true as never,
             'timeout_secs': 120,
             'allow_network': false,
@@ -167,7 +168,7 @@ describe('validateDefinition (executor)', () => {
     ]));
   });
 
-  test('accepts empty strings in required executor-specific string fields', () => {
+  test('rejects empty generic executor kind and name', () => {
     const result = validateDefinition({
       'sop_id': 'empty_executor_fields',
       'name': 'Empty Executor Fields',
@@ -190,8 +191,8 @@ describe('validateDefinition (executor)', () => {
           'inputs': {},
           'executor': {
             'kind': '',
-          'name': '',
-          'config': { 'command_template': '', 'path': '/tmp/workspace' },
+            'name': '',
+            'config': {'key': '', 'path': '/tmp/workspace'},
             'timeout_secs': 120,
             'allow_network': true,
             'env': {},
@@ -221,8 +222,8 @@ describe('validateDefinition (executor)', () => {
           'inputs': {},
           'executor': {
             'kind': 'llm',
-          'name': '',
-          'config': { 'model': '', 'prompt_template': '', 'path': '/tmp/workspace' },
+            'name': '',
+            'config': {'key': '', 'path': '/tmp/workspace'},
             'timeout_secs': 120,
             'allow_network': false,
             'env': {},
@@ -255,11 +256,17 @@ describe('validateDefinition (executor)', () => {
       'final_output': {'summary': 'ok'},
     });
 
-    expect(result.diagnostics).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({'code': 'schema_min_length', 'path': 'steps.0.executor.tool'}),
-      expect.objectContaining({'code': 'schema_min_length', 'path': 'steps.0.executor.command_template'}),
-      expect.objectContaining({'code': 'schema_min_length', 'path': 'steps.1.executor.model'}),
-      expect.objectContaining({'code': 'schema_min_length', 'path': 'steps.1.executor.prompt_template'}),
+    // Empty kind/name should produce schema_min_length diagnostics.
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({'code': 'schema_min_length', 'path': 'steps.0.executor.kind'}),
+      expect.objectContaining({'code': 'schema_min_length', 'path': 'steps.0.executor.name'}),
+      expect.objectContaining({'code': 'schema_min_length', 'path': 'steps.1.executor.name'}),
     ]));
+
+    // Executor.config is handler-owned opaque data — empty strings inside config do not produce schema diagnostics.
+    const configDiagnostics = result.diagnostics.filter(
+      (d) => d.path.startsWith('steps.0.executor.config') || d.path.startsWith('steps.1.executor.config'),
+    );
+    expect(configDiagnostics).toEqual([]);
   });
 });

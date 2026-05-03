@@ -1,4 +1,5 @@
 import { Diagnostic, ValidationResult } from './diagnostic.js';
+import { validateRuntimeSchemaKeywords } from './runtime_schema_keyword_validator.js';
 import { validateArrayKeywords, validateNumberKeywords, validateObjectKeywords, validateStringKeywords } from './runtime_value_validators.js';
 import { validateConstKeyword, validateEnumKeyword, validateTypeKeyword } from './runtime_type_validators.js';
 
@@ -29,6 +30,11 @@ export interface RuntimeValidationParams {
  */
 export function validateRuntimeValue(params: RuntimeValidationParams): ValidationResult {
   const diagnostics: Diagnostic[] = [];
+  validateRuntimeSchemaKeywords({
+    'schema': params.schema,
+    'path': params.path ?? '',
+    diagnostics,
+  });
   validateRuntimeSchemaValue({
     'schema': params.schema,
     'value': params.value,

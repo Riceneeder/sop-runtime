@@ -82,10 +82,15 @@ describe('createRun', () => {
       'now': '2026-04-20T12:00:00Z',
     });
 
+    expect(state.status).toBe('running');
+    expect(state.phase).toBe('ready');
+    expect(state.current_step_id).toBe('search_news');
+    expect(state.current_attempt).toBe(1);
     expect(state.run_input).toEqual({
       'company': 'Acme',
       'workspace': '/tmp/workspace',
     });
+    expect(state.steps.search_news?.status).toBe('active');
     expect(state.created_at).toBe('2026-04-20T12:00:00Z');
     expect(state.updated_at).toBe('2026-04-20T12:00:00Z');
     expect(state.history[0]).toEqual({

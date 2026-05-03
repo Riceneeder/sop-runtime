@@ -79,7 +79,7 @@ describe('ToolRegistryExecutor resource limits', () => {
     expectResultIdentity(result, packet);
   });
 
-  test('clamps very large timeout_secs values to avoid immediate timeout overflow', async () => {
+  test('setTimeout upper bound protection — large timeout_secs clamped to MAX_SET_TIMEOUT_MS', async () => {
     const executor = new ToolRegistryExecutor({
       'handlers': {
         async demo_tool() {

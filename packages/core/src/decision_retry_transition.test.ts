@@ -61,6 +61,7 @@ describe('applyDecision retry transitions', () => {
       error = caught;
     }
 
+    expect(error).toBeInstanceOf(CoreError);
     expect((error as CoreError).code).toBe('decision_rejected');
   });
 
@@ -78,6 +79,7 @@ describe('applyDecision retry transitions', () => {
       },
     });
 
+    expect(retriedState.status).toBe('running');
     expect(retriedState.phase).toBe('ready');
     expect(retriedState.current_step_id).toBe('step_a');
     expect(retriedState.current_attempt).toBe(2);
@@ -133,7 +135,9 @@ describe('applyDecision retry transitions', () => {
       retryLimitError = caught;
     }
 
+    expect(retryStatusError).toBeInstanceOf(CoreError);
     expect((retryStatusError as CoreError).code).toBe('decision_rejected');
+    expect(retryLimitError).toBeInstanceOf(CoreError);
     expect((retryLimitError as CoreError).code).toBe('decision_rejected');
   });
 
@@ -195,6 +199,7 @@ describe('applyDecision retry transitions', () => {
       error = caught;
     }
 
+    expect(error).toBeInstanceOf(CoreError);
     expect((error as CoreError).code).toBe('decision_rejected');
   });
 });

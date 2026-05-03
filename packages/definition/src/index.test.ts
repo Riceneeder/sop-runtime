@@ -8,17 +8,78 @@ import {
   JsonObject,
   RUN_PHASES,
   RUN_STATUSES,
+  RETRYABLE_STEP_RESULT_STATUSES,
   RetryPolicy,
-  STEP_LIFECYCLES,
-  RunState,
   SopDefinition,
+  STEP_LIFECYCLES,
   defineSop,
   parseExpressionBody,
   parseExpressionTemplate,
 } from './index.js';
 
-describe('definition exports', () => {
-  test('exports the shared SOP model types and richer run state contracts', () => {
+// ---- runtime constants ----
+describe('runtime constants', () => {
+  test('RUN_STATUSES exports running and terminal statuses', () => {
+    expect(RUN_STATUSES).toEqual(['running', 'succeeded', 'failed', 'cancelled']);
+  });
+
+  test('RUN_PHASES exports all orchestration phases', () => {
+    expect(RUN_PHASES).toEqual(['ready', 'awaiting_decision', 'paused', 'terminated']);
+  });
+
+  test('STEP_LIFECYCLES exports all lifecycle statuses', () => {
+    expect(STEP_LIFECYCLES).toEqual(['pending', 'active', 'waiting_decision', 'completed', 'failed']);
+  });
+
+  test('EXECUTOR_RESULT_STATUSES lists raw executor statuses', () => {
+    expect(EXECUTOR_RESULT_STATUSES).toEqual([
+      'success',
+      'timeout',
+      'tool_error',
+      'sandbox_error',
+    ]);
+  });
+
+  test('ACCEPTED_STEP_RESULT_STATUSES extends executor statuses with invalid_output', () => {
+    expect(ACCEPTED_STEP_RESULT_STATUSES).toEqual([
+      'success',
+      'timeout',
+      'tool_error',
+      'sandbox_error',
+      'invalid_output',
+    ]);
+  });
+
+  test('RETRYABLE_STEP_RESULT_STATUSES lists statuses eligible for retry', () => {
+    expect(RETRYABLE_STEP_RESULT_STATUSES).toEqual([
+      'timeout',
+      'tool_error',
+      'invalid_output',
+      'sandbox_error',
+    ]);
+  });
+});
+
+// ---- parser exports ----
+describe('parser exports', () => {
+  test('parseExpressionBody parses reference expressions into AST', () => {
+    expect(parseExpressionBody('run.input.company').kind).toBe('reference');
+  });
+
+  test('parseExpressionTemplate splits templates into segments', () => {
+    expect(parseExpressionTemplate('Hello ${run.input.company}').length).toBe(2);
+  });
+
+  test('ExpressionSyntaxError is a constructable error class', () => {
+    const err = new ExpressionSyntaxError('test');
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toBe('test');
+  });
+});
+
+// ---- type-level contracts ----
+describe('type-level contracts', () => {
+  test('SopDefinition accepts a complete workflow definition', () => {
     const input: JsonObject = {'company': 'Acme'};
     const definition: SopDefinition = {
       'sop_id': 'news_report',
@@ -71,31 +132,17 @@ describe('definition exports', () => {
       ],
       'final_output': {'summary': 'ok'},
     };
-    const state = {} as RunState;
 
     expect(input.company).toBe('Acme');
+    expect(definition.sop_id).toBe('news_report');
     expect(definition.steps[0]?.executor.kind).toBe('web_search');
-    expect(state).toBeDefined();
-    expect(RUN_STATUSES).toContain('running');
-    expect(RUN_PHASES).toContain('ready');
-    expect(STEP_LIFECYCLES).toContain('active');
-    expect(EXECUTOR_RESULT_STATUSES).toEqual([
-      'success',
-      'timeout',
-      'tool_error',
-      'sandbox_error',
-    ]);
-    expect(ACCEPTED_STEP_RESULT_STATUSES).toContain('invalid_output');
-    expect(parseExpressionBody('run.input.company').kind).toBe('reference');
-    expect(parseExpressionTemplate('Hello ${run.input.company}').length).toBe(2);
-    expect(ExpressionSyntaxError).toBeDefined();
   });
 
-  test('models executors as a generic kind+name config and narrows retry_on to supported statuses', () => {
+  test('ExecutorConfig supports multiple executor kinds with optional config', () => {
     const webSearchExecutor: ExecutorConfig = {
       'kind': 'web_search',
       'name': 'google_search',
-      'config': { 'region': 'us-east' },
+      'config': {'region': 'us-east'},
       'timeout_secs': 120,
       'allow_network': true,
       'env': {},
@@ -107,35 +154,15 @@ describe('definition exports', () => {
     const llmExecutor: ExecutorConfig = {
       'kind': 'llm',
       'name': 'gpt_summarize',
-      'config': { 'model': 'gpt-4', 'temperature': 0.3 },
+      'config': {'model': 'gpt-4', 'temperature': 0.3},
       'timeout_secs': 60,
       'allow_network': false,
-      'env': { 'API_KEY': 'sk-xxx' },
+      'env': {'API_KEY': 'sk-xxx'},
       'resource_limits': {
         'max_output_bytes': 4096,
         'max_artifacts': 0,
       },
     };
-    const retryPolicy: RetryPolicy = {
-      'max_attempts': 2,
-      'backoff_secs': [5],
-      'retry_on': ['timeout', 'invalid_output'],
-    };
-    const terminatedHistoryEntry: HistoryEntry = {
-      'kind': 'run_terminated',
-      'run_status': 'failed',
-      'reason': 'search_failed',
-    };
-
-    expect(webSearchExecutor.kind).toBe('web_search');
-    expect(webSearchExecutor.name).toBe('google_search');
-    expect(webSearchExecutor.config).toEqual({ 'region': 'us-east' });
-    expect(llmExecutor.kind).toBe('llm');
-    expect(llmExecutor.config).toEqual({ 'model': 'gpt-4', 'temperature': 0.3 });
-    expect(retryPolicy.retry_on).toContain('invalid_output');
-    expect(terminatedHistoryEntry.run_status).toBe('failed');
-
-    // config is optional — executor without config is valid
     const minimalExecutor: ExecutorConfig = {
       'kind': 'shell',
       'name': 'run_script',
@@ -147,35 +174,53 @@ describe('definition exports', () => {
         'max_artifacts': 0,
       },
     };
+
+    expect(webSearchExecutor.kind).toBe('web_search');
+    expect(webSearchExecutor.name).toBe('google_search');
+    expect(webSearchExecutor.config).toEqual({'region': 'us-east'});
+    expect(llmExecutor.kind).toBe('llm');
+    expect(llmExecutor.config).toEqual({'model': 'gpt-4', 'temperature': 0.3});
     expect(minimalExecutor.config).toBeUndefined();
     expect(minimalExecutor.kind).toBe('shell');
+  });
 
-    const invalidRetryPolicy: RetryPolicy = {
+  test('RetryPolicy and HistoryEntry model valid data', () => {
+    const retryPolicy: RetryPolicy = {
       'max_attempts': 2,
       'backoff_secs': [5],
-      // @ts-expect-error retry_on must be limited to retryable result statuses.
+      'retry_on': ['timeout', 'invalid_output'],
+    };
+    const terminatedHistoryEntry: HistoryEntry = {
+      'kind': 'run_terminated',
+      'run_status': 'failed',
+      'reason': 'search_failed',
+    };
+
+    expect(retryPolicy.retry_on).toContain('invalid_output');
+    expect(terminatedHistoryEntry.run_status).toBe('failed');
+  });
+
+  test('type narrowing rejects invalid retry_on and missing RetryPolicy fields', () => {
+    const _invalidRetryPolicy: RetryPolicy = {
+      'max_attempts': 2,
+      'backoff_secs': [5],
+      // @ts-expect-error — retry_on must be limited to retryable result statuses.
       'retry_on': ['success'],
     };
-    // @ts-expect-error RetryPolicy requires max_attempts, backoff_secs, and retry_on.
-    const missingRetryPolicyFields: RetryPolicy = {};
-    const invalidTerminatedHistoryEntry: HistoryEntry = {
+    // @ts-expect-error — RetryPolicy requires max_attempts, backoff_secs, and retry_on.
+    const _missingRetryPolicyFields: RetryPolicy = {};
+    const _invalidTerminatedHistoryEntry: HistoryEntry = {
       'kind': 'run_terminated',
-      // @ts-expect-error run_terminated only allows terminal run statuses.
+      // @ts-expect-error — run_terminated only allows terminal run statuses.
       'run_status': 'running',
       'reason': 'still_running',
     };
-
-    expect(invalidRetryPolicy).toBeDefined();
-    expect(missingRetryPolicyFields).toBeDefined();
-    expect(invalidTerminatedHistoryEntry).toBeDefined();
   });
+});
 
-  test('paused phase is included in RUN_PHASES', () => {
-    expect(RUN_PHASES).toContain('paused');
-    expect(RUN_PHASES).toEqual(['ready', 'awaiting_decision', 'paused', 'terminated']);
-  });
-
-  test('defineSop returns a plain SopDefinition object with all fields preserved', () => {
+// ---- defineSop ----
+describe('defineSop', () => {
+  test('returns a plain SopDefinition object with all fields preserved', () => {
     const definition = defineSop({
       'sop_id': 'builder_test',
       'name': 'Builder Test',
@@ -271,7 +316,7 @@ describe('definition exports', () => {
     expect(definition.final_output).toEqual({'summary': '${steps.step_a.output.result}'});
   });
 
-  test('defineSop output is a plain object, not a validated or transformed copy', () => {
+  test('output is identity — returns the same object, no clone, no validation, no defaults', () => {
     const input = {
       'sop_id': 'plain',
       'name': 'Plain',
@@ -289,7 +334,7 @@ describe('definition exports', () => {
     } satisfies SopDefinition;
     const result = defineSop(input);
 
-    expect(result).toBe(input); // identity — no clone
+    expect(result).toBe(input);
     expect(result.steps).toEqual([]);
   });
 });
