@@ -1,5 +1,6 @@
 import { Diagnostic } from './diagnostic.js';
 import { joinPath } from './path.js';
+import { SUPPORTED_SCHEMA_TYPES } from './runtime_type_validators.js';
 
 /**
  * Parameters for validating the structure of supported JSON Schema keywords.
@@ -20,16 +21,6 @@ interface NarrowParams {
   path: string;
   diagnostics: Diagnostic[];
 }
-
-const SUPPORTED_SCHEMA_TYPES = new Set([
-  'array',
-  'boolean',
-  'integer',
-  'null',
-  'number',
-  'object',
-  'string',
-]);
 
 /**
  * Validate that supported JSON Schema keywords have correct types/shapes.
@@ -124,7 +115,6 @@ function validateTypeKeywordShape(params: NarrowParams): void {
 
   const typeVal: unknown = schema.type;
 
-  // string type
   if (typeof typeVal === 'string') {
     if (!SUPPORTED_SCHEMA_TYPES.has(typeVal)) {
       diagnostics.push({
@@ -136,7 +126,6 @@ function validateTypeKeywordShape(params: NarrowParams): void {
     return;
   }
 
-  // array type
   if (Array.isArray(typeVal)) {
     if (typeVal.length === 0) {
       diagnostics.push({
@@ -147,8 +136,17 @@ function validateTypeKeywordShape(params: NarrowParams): void {
     }
 
     typeVal.forEach((t, i) => {
-      if (typeof t !== 'string' || !SUPPORTED_SCHEMA_TYPES.has(t)) {
-        const itemPath = joinPath(path, 'type', i);
+      const itemPath = joinPath(path, 'type', i);
+      if (typeof t !== 'string') {
+        diagnostics.push({
+          'code': 'schema_type',
+          'message': 'Expected string.',
+          'path': itemPath,
+        });
+        return;
+      }
+
+      if (!SUPPORTED_SCHEMA_TYPES.has(t)) {
         diagnostics.push({
           'code': 'schema_enum',
           'message': 'Expected one of: array, boolean, integer, null, number, object, string',
@@ -159,7 +157,6 @@ function validateTypeKeywordShape(params: NarrowParams): void {
     return;
   }
 
-  // any other type value
   diagnostics.push({
     'code': 'schema_type',
     'message': 'Expected string or array.',

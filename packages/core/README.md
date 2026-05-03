@@ -180,22 +180,22 @@ import {createRun, applyStepResult, applyDecision, CoreError} from '@sop-runtime
 
 | 文件 | 关注点 |
 |---|---|
-| [`src/index.test.ts`](./src/index.test.ts) | 公共导出和基本集成：createRun → getCurrentStep → buildStepPacket |
-| [`src/create_run.test.ts`](./src/create_run.test.ts) | createRun 的 definition 校验、input 合并、初始状态构建 |
-| [`src/build_step_packet.test.ts`](./src/build_step_packet.test.ts) | 表达式模板解析、前置条件校验、policy key 渲染 |
-| [`src/step_result_validation.test.ts`](./src/step_result_validation.test.ts) | StepResult 结构校验边界 |
-| [`src/step_result_normalization.test.ts`](./src/step_result_normalization.test.ts) | 非法 status 到 `invalid_output` 的规范化 |
-| [`src/apply_step_result_test_helpers.ts`](./src/apply_step_result_test_helpers.ts) | applyStepResult 测试辅助（共享 fixture） |
-| [`src/apply_decision_test_helpers.ts`](./src/apply_decision_test_helpers.ts) | applyDecision 测试辅助（共享 fixture） |
-| [`src/decision_validation.test.ts`](./src/decision_validation.test.ts) | Decision 结构校验 |
-| [`src/decision_next_step_transition.test.ts`](./src/decision_next_step_transition.test.ts) | next_step 转移 |
-| [`src/decision_retry_transition.test.ts`](./src/decision_retry_transition.test.ts) | retry 转移 |
-| [`src/decision_termination_transition.test.ts`](./src/decision_termination_transition.test.ts) | terminate 转移 |
-| [`src/render_final_output.test.ts`](./src/render_final_output.test.ts) | final_output 模板渲染 |
-| [`src/pause_run.test.ts`](./src/pause_run.test.ts) | pauseRun 的行为边界 |
-| [`src/resume_run.test.ts`](./src/resume_run.test.ts) | resumeRun 的行为边界 |
-| [`src/terminate_run.test.ts`](./src/terminate_run.test.ts) | terminateRun 的行为边界 |
-| [`src/get_current_step_paused.test.ts`](./src/get_current_step_paused.test.ts) | paused 状态下 getCurrentStep 的行为 |
+| [`test/index.test.ts`](./test/index.test.ts) | 公共导出和基本集成：createRun → getCurrentStep → buildStepPacket |
+| [`test/create_run.test.ts`](./test/create_run.test.ts) | createRun 的 definition 校验、input 合并、初始状态构建 |
+| [`test/build_step_packet.test.ts`](./test/build_step_packet.test.ts) | 表达式模板解析、前置条件校验、policy key 渲染 |
+| [`test/step_result_validation.test.ts`](./test/step_result_validation.test.ts) | StepResult 结构校验边界 |
+| [`test/step_result_normalization.test.ts`](./test/step_result_normalization.test.ts) | 非法 status 到 `invalid_output` 的规范化 |
+| [`test/apply_step_result_test_helpers.ts`](./test/apply_step_result_test_helpers.ts) | applyStepResult 测试辅助（共享 fixture） |
+| [`test/apply_decision_test_helpers.ts`](./test/apply_decision_test_helpers.ts) | applyDecision 测试辅助（共享 fixture） |
+| [`test/decision_validation.test.ts`](./test/decision_validation.test.ts) | Decision 结构校验 |
+| [`test/decision_next_step_transition.test.ts`](./test/decision_next_step_transition.test.ts) | next_step 转移 |
+| [`test/decision_retry_transition.test.ts`](./test/decision_retry_transition.test.ts) | retry 转移 |
+| [`test/decision_termination_transition.test.ts`](./test/decision_termination_transition.test.ts) | terminate 转移 |
+| [`test/render_final_output.test.ts`](./test/render_final_output.test.ts) | final_output 模板渲染 |
+| [`test/pause_run.test.ts`](./test/pause_run.test.ts) | pauseRun 的行为边界 |
+| [`test/resume_run.test.ts`](./test/resume_run.test.ts) | resumeRun 的行为边界 |
+| [`test/terminate_run.test.ts`](./test/terminate_run.test.ts) | terminateRun 的行为边界 |
+| [`test/get_current_step_paused.test.ts`](./test/get_current_step_paused.test.ts) | paused 状态下 getCurrentStep 的行为 |
 
 ### 构建产物与缓存
 

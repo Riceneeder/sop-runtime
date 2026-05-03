@@ -32,7 +32,7 @@ export function validateRuntimeValue(params: RuntimeValidationParams): Validatio
   const diagnostics: Diagnostic[] = [];
   validateRuntimeSchemaKeywords({
     'schema': params.schema,
-    'path': params.path ?? '',
+    'path': getSchemaDiagnosticPath(params.path),
     diagnostics,
   });
   validateRuntimeSchemaValue({
@@ -46,6 +46,10 @@ export function validateRuntimeValue(params: RuntimeValidationParams): Validatio
     'ok': diagnostics.length === 0,
     diagnostics,
   };
+}
+
+function getSchemaDiagnosticPath(path: string | undefined): string {
+  return path === undefined || path.length === 0 ? '$schema' : `$schema.${path}`;
 }
 
 /**

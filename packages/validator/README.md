@@ -108,18 +108,18 @@ if (!result.ok) {
 
 | 文件                                                             | 作用         | 关注点                     |
 | -------------------------------------------------------------- | ---------- | ----------------------- |
-| [`src/index.test.ts`](./src/index.test.ts)                     | 验证公共入口导出核心类型。 | 顶层入口、诊断类型导出                                   |
-| [`src/validate_definition_schema.test.ts`](./src/validate_definition_schema.test.ts) | 结构层校验测试。 | 顶层字段、策略字段、执行器字段的结构校验 |
-| [`src/validate_definition_semantic.test.ts`](./src/validate_definition_semantic.test.ts) | 语义层校验测试。 | allowed_outcomes / transitions / entry_step 语义校验 |
-| [`src/validate_definition_expression.test.ts`](./src/validate_definition_expression.test.ts) | 表达式校验测试。 | 输入/输出字段引用、可达性、模板语法 |
-| [`src/validate_definition_executor.test.ts`](./src/validate_definition_executor.test.ts) | 执行器配置校验测试。 | executor kind/name/config、超时和环境约束 |
-| [`src/validate_definition_executor_expression.test.ts`](./src/validate_definition_executor_expression.test.ts) | 执行器相关表达式引用校验测试。 | exec config 中 expression 不做解释的行为 |
-| [`src/validate_definition_malformed.test.ts`](./src/validate_definition_malformed.test.ts) | 畸形输入鲁棒性测试。 | null、undefined、非对象输入、空数组、额外字段 |
-| [`src/validate_definition_reachability.test.ts`](./src/validate_definition_reachability.test.ts) | 步骤可达性校验测试。 | final_output 引用不可达步骤、分支路径可达性 |
-| [`src/validate_definition_schema_path.test.ts`](./src/validate_definition_schema_path.test.ts) | 诊断路径输出测试。 | 嵌套错误的 path 格式化和稳定性 |
-| [`src/validate_definition_step.test.ts`](./src/validate_definition_step.test.ts) | 步骤定义校验测试。 | step id 重复、缺失字段、output_schema 结构 |
-| [`src/runtime_schema_validator.test.ts`](./src/runtime_schema_validator.test.ts) | 运行时 schema 校验测试。 | 运行时输入/输出类型校验、enum/required/pattern 匹配 |
-| [`src/example_definition.test.ts`](./src/example_definition.test.ts) | 仓库级 example definition 通过性测试。 | `examples/basic_sop_definition.json` 通过 validateDefinition |
+| [`test/index.test.ts`](./test/index.test.ts)                     | 验证公共入口导出核心类型。 | 顶层入口、诊断类型导出                                   |
+| [`test/validate_definition_schema.test.ts`](./test/validate_definition_schema.test.ts) | 结构层校验测试。 | 顶层字段、策略字段、执行器字段的结构校验 |
+| [`test/validate_definition_semantic.test.ts`](./test/validate_definition_semantic.test.ts) | 语义层校验测试。 | allowed_outcomes / transitions / entry_step 语义校验 |
+| [`test/validate_definition_expression.test.ts`](./test/validate_definition_expression.test.ts) | 表达式校验测试。 | 输入/输出字段引用、可达性、模板语法 |
+| [`test/validate_definition_executor.test.ts`](./test/validate_definition_executor.test.ts) | 执行器配置校验测试。 | executor kind/name/config、超时和环境约束 |
+| [`test/validate_definition_executor_expression.test.ts`](./test/validate_definition_executor_expression.test.ts) | 执行器相关表达式引用校验测试。 | exec config 中 expression 不做解释的行为 |
+| [`test/validate_definition_malformed.test.ts`](./test/validate_definition_malformed.test.ts) | 畸形输入鲁棒性测试。 | null、undefined、非对象输入、空数组、额外字段 |
+| [`test/validate_definition_reachability.test.ts`](./test/validate_definition_reachability.test.ts) | 步骤可达性校验测试。 | final_output 引用不可达步骤、分支路径可达性 |
+| [`test/validate_definition_schema_path.test.ts`](./test/validate_definition_schema_path.test.ts) | 诊断路径输出测试。 | 嵌套错误的 path 格式化和稳定性 |
+| [`test/validate_definition_step.test.ts`](./test/validate_definition_step.test.ts) | 步骤定义校验测试。 | step id 重复、缺失字段、output_schema 结构 |
+| [`test/runtime_schema_validator.test.ts`](./test/runtime_schema_validator.test.ts) | 运行时 schema 校验测试。 | 运行时输入/输出类型校验、enum/required/pattern 匹配 |
+| [`test/example_definition.test.ts`](./test/example_definition.test.ts) | 仓库级 example definition 通过性测试。 | `examples/basic_sop_definition.json` 通过 validateDefinition |
 
 ### 构建产物与缓存
 

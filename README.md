@@ -184,4 +184,4 @@ console.log(completed.final_output);
 - 使用 ES modules 和 named exports。
 - 使用 `snake_case` 文件名。
 - 按 package responsibility 组织代码。
-- 测试文件放在对应包的 `src/` 目录下，文件名使用 `*.test.ts`。
+- 测试文件放在对应包与 `src/` 同级的 `test/` 目录下，文件名使用 `*.test.ts`。

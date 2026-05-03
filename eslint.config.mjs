@@ -22,7 +22,8 @@ export default [
     languageOptions: {
       parser: tsparser,
       parserOptions: {
-        projectService: true,
+        project: ['./tsconfig.test.json'],
+        tsconfigRootDir: import.meta.dirname,
       },
       globals: {
         ...globals.node,

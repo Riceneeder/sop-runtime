@@ -7,10 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `bun install` — install workspace dependencies
 - `bun run check` — full verification (lint + typecheck + test)
 - `bun run lint` — ESLint with zero warnings allowed
-- `bun run typecheck` — type-check all referenced packages with `tsc -b`
+- `bun run typecheck` — type-check production package references and tests
 - `bun run test` — run all package tests with Bun
-- `bun test packages/<pkg>/src/<file>.test.ts` — run a single test file
-- `bun test packages/<pkg>/src --test-name-pattern "pattern"` — run focused tests
+- `bun test packages/<pkg>/test/<file>.test.ts` — run a single test file
+- `bun test packages/<pkg>/test --test-name-pattern "pattern"` — run focused tests
 
 ## Architecture
 
@@ -48,7 +48,7 @@ import { RuntimeHost, InMemoryStateStore } from '@sop-runtime/runtime';
 - `snake_case` file names, 2-space indentation, semicolons
 - `import type` is forbidden — use regular imports for types
 - `any` and TypeScript namespaces are forbidden
-- Test files live beside source as `*.test.ts` using `bun:test`
+- Test files live in each package's sibling `test/` directory as `*.test.ts` using `bun:test`
 - Unused variables must be prefixed with `_`
 - The ESLint config disallows default exports, namespaces, `any`, and `import type` — verify with `bun run lint` (zero warnings)
 

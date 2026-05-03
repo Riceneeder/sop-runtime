@@ -8,8 +8,8 @@
   ],
   "scripts": {
     "lint": "bunx eslint . --max-warnings 0",
-    "typecheck": "bunx tsc -b",
-    "test": "bun test packages/*/src",
+    "typecheck": "bunx tsc -b && bunx tsc -p tsconfig.test.json",
+    "test": "bun test packages/*/test",
     "check": "bun run lint && bun run typecheck && bun run test"
   },
   "devDependencies": {

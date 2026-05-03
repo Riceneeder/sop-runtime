@@ -134,9 +134,9 @@ const definition = defineSop({
 
 | 文件                                                   | 作用                     | 关注点                                             |
 | ---------------------------------------------------- | ---------------------- | ----------------------------------------------- |
-| [`src/index.test.ts`](./src/index.test.ts)           | 检查公共导出是否完整、联合类型是否正确收窄。 | 包入口、类型导出、常量导出                                   |
-| [`src/expression.test.ts`](./src/expression.test.ts) | 检查表达式解析器的 AST 形态和错误处理。 | `parseExpressionBody`、`parseExpressionTemplate` |
-| [`src/json_value.test.ts`](./src/json_value.test.ts) | 检查 JSON 安全值检测工具函数。       | `isJsonSafeValue`、`isJsonSafeObject`、`isStrictPlainObject`、`isStringRecord` |
+| [`test/index.test.ts`](./test/index.test.ts)           | 检查公共导出是否完整、联合类型是否正确收窄。 | 包入口、类型导出、常量导出                                   |
+| [`test/expression.test.ts`](./test/expression.test.ts) | 检查表达式解析器的 AST 形态和错误处理。 | `parseExpressionBody`、`parseExpressionTemplate` |
+| [`test/json_value.test.ts`](./test/json_value.test.ts) | 检查 JSON 安全值检测工具函数。       | `isJsonSafeValue`、`isJsonSafeObject`、`isStrictPlainObject`、`isStringRecord` |
 
 ### 构建产物与缓存
 
@@ -201,19 +201,19 @@ index
 6. [`src/run_state.ts`](./src/run_state.ts)
 7. [`src/expression_ast.ts`](./src/expression_ast.ts)、[`src/expression_body_parser.ts`](./src/expression_body_parser.ts)、[`src/template_parser.ts`](./src/template_parser.ts)
 8. [`src/index.ts`](./src/index.ts)
-9. [`src/index.test.ts`](./src/index.test.ts)
-10. [`src/expression.test.ts`](./src/expression.test.ts)、[`src/json_value.test.ts`](./src/json_value.test.ts)
+9. [`test/index.test.ts`](./test/index.test.ts)
+10. [`test/expression.test.ts`](./test/expression.test.ts)、[`test/json_value.test.ts`](./test/json_value.test.ts)
 
 ## 测试文件说明
 
 这个包的测试按职责分三层：
 
-- [`src/index.test.ts`](./src/index.test.ts) 偏“对外契约测试”
+- [`test/index.test.ts`](./test/index.test.ts) 偏“对外契约测试”
   - 它验证使用者能否从 `index.ts` 拿到正确的导出
   - 它还验证联合类型的区分和约束是否符合预期
-- [`src/expression.test.ts`](./src/expression.test.ts) 偏“解析算法测试”
+- [`test/expression.test.ts`](./test/expression.test.ts) 偏“解析算法测试”
   - 它验证模板切分、引用解析、`coalesce(...)` 参数拆分和异常分支
-- [`src/json_value.test.ts`](./src/json_value.test.ts) 偏“工具函数测试”
+- [`test/json_value.test.ts`](./test/json_value.test.ts) 偏“工具函数测试”
   - 它验证 JSON 安全值检测和类型守卫的行为
 
 如果你只想判断包的公开能力有没有变，先看 `index.test.ts`；如果你在追表达式行为，再看 `expression.test.ts`。
