@@ -35,6 +35,72 @@ bun run check
 definition -> validator -> core -> runtime
 ```
 
+## 运行时序图
+
+以下时序图展示一次 SOP run 从启动到完成的完整调用链，说明四层包如何协作：
+
+```mermaid
+sequenceDiagram
+  participant App as 用户应用
+  participant Runtime as @sop-runtime/runtime<br/>RuntimeHost
+  participant Core as @sop-runtime/core<br/>纯函数
+  participant Validator as @sop-runtime/validator
+  participant Store as StateStore
+  participant Executor as StepExecutor
+  participant Decision as DecisionProvider
+
+  App->>+Runtime: startRun(definition, input)
+  Runtime->>+Core: createRun(definition, input, runId)
+  Core->>+Validator: validateDefinition(definition)
+  Validator-->>-Core: ValidationResult
+  Core->>+Validator: validateRuntimeValue(input, input_schema)
+  Validator-->>-Core: ValidationResult
+  Core-->>-Runtime: RunState (running/ready)
+  Runtime->>+Store: claimRunStart(runRecord)
+  Store-->>-Runtime: RunRecord (created / idempotent_replay / …)
+  Runtime-->>-App: started { state, reason }
+
+  App->>+Runtime: runUntilComplete(definition, runId)
+
+  loop run phase 在 ready / awaiting_decision 之间循环直到 terminated
+    Note over Runtime,Core: === runReadyStep ===
+    Runtime->>+Core: buildStepPacket(definition, state)
+    Core-->>-Runtime: StepPacket (表达式已解析)
+    Runtime->>Runtime: beforeStep hooks (改写 inputs / config)
+    alt beforeStep control = pause / terminate
+      Runtime-->>App: 跳过执行，由 control 决定下一步
+    else
+      Runtime->>+Executor: execute(packet)
+      Executor-->>-Runtime: StepResult
+      Runtime->>Runtime: afterStep hooks (改写 result / control)
+      Runtime->>+Core: applyStepResult(definition, state, result)
+      Core->>+Validator: validateRuntimeValue(output, output_schema)
+      Validator-->>-Core: 校验通过/不通过
+      Core-->>-Runtime: RunState (awaiting_decision)
+      Runtime->>Runtime: emit step_result_accepted 事件
+    end
+
+    Note over Runtime,Core: === applyDecision ===
+    Runtime->>+Decision: decide(state, accepted_result)
+    Decision-->>-Runtime: Decision
+    Runtime->>+Core: applyDecision(definition, state, decision)
+    alt 决策类型
+      Core->>Core: next_step → 目标 step active, phase=ready
+      Core->>Core: retry → 当前 step 重试, phase=ready
+      Core->>Core: terminate → run 终止
+    end
+    Core-->>-Runtime: RunState (ready / terminated)
+    Runtime->>Runtime: emit decision_applied 事件
+  end
+
+  alt run 以 succeeded 终止
+    Runtime->>+Core: renderFinalOutput(definition, state)
+    Core-->>-Runtime: final_output
+  end
+
+  Runtime-->>-App: completed { state, final_output }
+```
+
 ## 最小使用流程
 
 1. 编写 SOP definition。有两种 authoring 方式：
