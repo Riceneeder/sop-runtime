@@ -2,6 +2,15 @@ import { SopDefinition } from '@sop-runtime/definition';
 import { Diagnostic } from './diagnostic.js';
 import { joinPath } from './path.js';
 
+/**
+ * Validate semantic consistency of an SOP definition (entry step, duplicate IDs, transition references).
+ *
+ * 校验 SOP 定义的语义一致性（入口步骤、重复 ID、转移引用）。
+ *
+ * @param definition - The SOP definition to validate.
+ * @returns An array of validation diagnostics (empty if valid).
+ * @public
+ */
 export function validateSemanticDefinition(definition: SopDefinition): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   const knownStepIds = computeKnownStepIds(definition.steps);

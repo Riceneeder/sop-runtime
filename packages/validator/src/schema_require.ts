@@ -1,6 +1,17 @@
 import { Diagnostic } from './diagnostic.js';
 import { joinPath } from './path.js';
 
+/**
+ * Push a diagnostic for each unknown key in an object that is not in the allowed set.
+ *
+ * 为对象中不在允许集合中的每个未知键推送诊断信息。
+ *
+ * @param value - The object to check.
+ * @param allowed - The set of allowed keys.
+ * @param basePath - The base path for diagnostics.
+ * @param diagnostics - The diagnostics accumulator.
+ * @public
+ */
 export function pushUnknownKeys(
   value: Record<string, unknown>,
   allowed: Set<string>,
@@ -18,6 +29,17 @@ export function pushUnknownKeys(
   }
 }
 
+/**
+ * Assert that a value is an array with at least the minimum number of items.
+ *
+ * 断言值为数组且至少包含指定数量的元素。
+ *
+ * @param value - The value to check.
+ * @param path - The path for diagnostics.
+ * @param diagnostics - The diagnostics accumulator.
+ * @param opts - Options including minItems.
+ * @public
+ */
 export function requireArrayWithMinItems(
   value: unknown,
   path: string,
@@ -38,18 +60,48 @@ export function requireArrayWithMinItems(
   }
 }
 
+/**
+ * Assert that a value is a plain object.
+ *
+ * 断言值为普通对象。
+ *
+ * @param value - The value to check.
+ * @param path - The path for diagnostics.
+ * @param diagnostics - The diagnostics accumulator.
+ * @public
+ */
 export function requireObject(value: unknown, path: string, diagnostics: Diagnostic[]): void {
   if (!isPlainObject(value)) {
     diagnostics.push({ 'code': 'schema_type', 'message': 'Expected object.', 'path': path });
   }
 }
 
+/**
+ * Assert that a value is a string.
+ *
+ * 断言值为字符串。
+ *
+ * @param value - The value to check.
+ * @param path - The path for diagnostics.
+ * @param diagnostics - The diagnostics accumulator.
+ * @public
+ */
 export function requireString(value: unknown, path: string, diagnostics: Diagnostic[]): void {
   if (typeof value !== 'string') {
     diagnostics.push({ 'code': 'schema_type', 'message': 'Expected string.', 'path': path });
   }
 }
 
+/**
+ * Assert that a value is a non-empty string.
+ *
+ * 断言值为非空字符串。
+ *
+ * @param value - The value to check.
+ * @param path - The path for diagnostics.
+ * @param diagnostics - The diagnostics accumulator.
+ * @public
+ */
 export function requireNonEmptyString(value: unknown, path: string, diagnostics: Diagnostic[]): void {
   requireString(value, path, diagnostics);
 
@@ -58,6 +110,17 @@ export function requireNonEmptyString(value: unknown, path: string, diagnostics:
   }
 }
 
+/**
+ * Assert that a value matches a regular expression pattern.
+ *
+ * 断言值匹配正则表达式模式。
+ *
+ * @param value - The value to check.
+ * @param path - The path for diagnostics.
+ * @param diagnostics - The diagnostics accumulator.
+ * @param opts - Options including the pattern.
+ * @public
+ */
 export function requirePattern(
   value: unknown,
   path: string,
@@ -73,6 +136,17 @@ export function requirePattern(
   }
 }
 
+/**
+ * Assert that a value is an integer at least the specified minimum.
+ *
+ * 断言值为整数且至少为指定最小值。
+ *
+ * @param value - The value to check.
+ * @param path - The path for diagnostics.
+ * @param diagnostics - The diagnostics accumulator.
+ * @param opts - Options including the minimum value.
+ * @public
+ */
 export function requireIntegerAtLeast(
   value: unknown,
   path: string,
@@ -93,6 +167,17 @@ export function requireIntegerAtLeast(
   }
 }
 
+/**
+ * Assert that a value is one of the allowed string values.
+ *
+ * 断言值为允许的字符串值之一。
+ *
+ * @param value - The value to check.
+ * @param path - The path for diagnostics.
+ * @param diagnostics - The diagnostics accumulator.
+ * @param opts - Options including the allowed values.
+ * @public
+ */
 export function requireEnum(
   value: unknown,
   path: string,
@@ -113,6 +198,16 @@ export function requireEnum(
   }
 }
 
+/**
+ * Assert that a value is a boolean.
+ *
+ * 断言值为布尔值。
+ *
+ * @param value - The value to check.
+ * @param path - The path for diagnostics.
+ * @param diagnostics - The diagnostics accumulator.
+ * @public
+ */
 export function requireBoolean(value: unknown, path: string, diagnostics: Diagnostic[]): void {
   if (typeof value !== 'boolean') {
     diagnostics.push({ 'code': 'schema_type', 'message': 'Expected boolean.', 'path': path });

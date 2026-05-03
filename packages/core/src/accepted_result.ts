@@ -6,6 +6,17 @@ import {
 } from '@sop-runtime/definition';
 import {validateRuntimeValue} from '@sop-runtime/validator';
 
+/**
+ * Normalize a raw StepResult into an AcceptedStepResult, validating output against the step schema.
+ *
+ * 将原始 StepResult 归一化为 AcceptedStepResult，并根据步骤 schema 校验输出。
+ *
+ * @param params - Object containing the step definition and raw step result.
+ * @param params.step - The step definition for output-schema validation.
+ * @param params.stepResult - The raw step result to normalize.
+ * @returns The normalized accepted step result.
+ * @public
+ */
 export function normalizeAcceptedResult(params: {
   step: SopDefinition['steps'][number];
   stepResult: StepResult;
@@ -19,6 +30,11 @@ export function normalizeAcceptedResult(params: {
   return validateAndNormalizeSuccessResult({step, stepResult});
 }
 
+/**
+ * Normalize a non-success step result (passthrough with optional cloning).
+ *
+ * 归一化非成功步骤结果（透传并可选克隆）。
+ */
 function normalizeNonSuccessResult(stepResult: StepResult): AcceptedStepResult {
   return {
     'step_id': stepResult.step_id,
@@ -31,6 +47,11 @@ function normalizeNonSuccessResult(stepResult: StepResult): AcceptedStepResult {
   };
 }
 
+/**
+ * Validate a success result's output against the step schema and normalize.
+ *
+ * 校验成功结果的输出是否满足步骤 schema 并归一化。
+ */
 function validateAndNormalizeSuccessResult(params: {
   step: SopDefinition['steps'][number];
   stepResult: StepResult;

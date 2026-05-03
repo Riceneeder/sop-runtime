@@ -8,6 +8,19 @@ import { RuntimeError } from './runtime_error.js';
 import { HostDeps, ExecutorHandlerInput } from './runtime_host_types.js';
 import { executeHandlerWithTimeout, enforceResourceLimits } from './executor_enforcer.js';
 
+/**
+ * Dispatch a built step packet to the registered executor handler, with timeout enforcement and resource limit checks.
+ *
+ * 将构建好的步骤数据包分发到已注册的执行器处理器，包含超时强制执行和资源限制检查。
+ *
+ * @param deps - The host dependencies containing registered executors.
+ * @param packet - The built step packet from buildStepPacket.
+ * @param definition - The SOP definition.
+ * @param state - The current run state.
+ * @returns The step result from the executor.
+ * @throws {RuntimeError} If no executor handler is registered.
+ * @public
+ */
 export async function dispatchExecutor(
   deps: HostDeps,
   packet: ReturnType<typeof buildStepPacket>,

@@ -2,6 +2,19 @@ import {RunState, SopDefinition} from '@sop-runtime/definition';
 import {CoreError} from './core_error.js';
 import {assertDefinitionMatchesRun} from './get_current_step.js';
 
+/**
+ * Resume a paused run, restoring its previous phase (ready or awaiting_decision).
+ *
+ * 恢复已暂停的运行，还原其之前的阶段（ready 或 awaiting_decision）。
+ *
+ * @param params - Object containing the definition, state, and optional timestamp.
+ * @param params.definition - The SOP definition.
+ * @param params.state - The current run state (must be paused).
+ * @param params.now - Optional timestamp for history entries.
+ * @returns The resumed run state.
+ * @throws {CoreError} If the run cannot be resumed.
+ * @public
+ */
 export function resumeRun(params: {
   definition: SopDefinition;
   state: RunState;
@@ -27,6 +40,11 @@ export function resumeRun(params: {
   };
 }
 
+/**
+ * Assert that the run is in a resumable state (running, paused, with pause metadata).
+ *
+ * 断言运行处于可恢复状态（running、paused、带有 pause 元数据）。
+ */
 function assertResumable(state: RunState): void {
   if (state.status !== 'running') {
     throw new CoreError('invalid_state', {

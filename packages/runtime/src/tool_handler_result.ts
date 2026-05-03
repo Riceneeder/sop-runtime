@@ -18,6 +18,17 @@ import {
 } from './tool_error_result.js';
 import { ToolHandlerResult } from './tool_registry_executor.js';
 
+/**
+ * Validate and convert a ToolHandlerResult into a canonical StepResult.
+ *
+ * 校验并将 ToolHandlerResult 转换为规范的 StepResult。
+ *
+ * @param packet - The runtime step packet for context.
+ * @param _toolName - The tool name (unused, reserved).
+ * @param invocationResult - The raw result from the tool handler.
+ * @returns A validated StepResult, or an error StepResult if validation fails.
+ * @public
+ */
 export function validateHandlerResult(
   packet: RuntimeStepPacket,
   _toolName: string,

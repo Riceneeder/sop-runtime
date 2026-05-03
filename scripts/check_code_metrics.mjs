@@ -9,6 +9,26 @@ const MAX_POSITIONAL_PARAMS = 3;
 
 const SRC_DIR = join(import.meta.dirname, '..', 'packages');
 
+/** Lines that are blank, pure comment, or JSDoc should not count toward code-metric limits. */
+function isSignificantLine(text) {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return false;           // blank
+  if (trimmed.startsWith('//')) return false;        // single-line comment
+  if (trimmed.startsWith('*') && trimmed.endsWith('*/')) return false; // end of JSDoc on same line
+  if (trimmed === '/**' || trimmed === '/*') return false;  // start of block comment
+  if (trimmed.startsWith('*')) return false;         // continuation of JSDoc/block comment
+  if (trimmed === '*/') return false;                // end of block comment on its own line
+  return true;
+}
+
+function countSignificantLines(lines, start, end) {
+  let count = 0;
+  for (let k = start; k < end; k++) {
+    if (isSignificantLine(lines[k])) count++;
+  }
+  return count;
+}
+
 let violations = 0;
 
 function* walkTsFiles(dir) {
@@ -26,8 +46,9 @@ function* walkTsFiles(dir) {
 }
 
 function reportFileTooLarge(file, lines) {
-  if (lines > MAX_FILE_LINES) {
-    console.log(`FILE_TOO_LARGE: ${file} (${lines} lines, max ${MAX_FILE_LINES})`);
+  const sigLines = countSignificantLines(lines, 0, lines.length);
+  if (sigLines > MAX_FILE_LINES) {
+    console.log(`FILE_TOO_LARGE: ${file} (${sigLines} significant lines, max ${MAX_FILE_LINES})`);
     violations++;
   }
 }
@@ -79,7 +100,7 @@ function analyzeFunctions(filePath, lines) {
           if (ch === '}') { braceDepth--; }
         }
         if (started && braceDepth === 0) {
-          funcLines = j - i + 1;
+          funcLines = countSignificantLines(lines, i, j + 1);
           break;
         }
         j++;

@@ -9,6 +9,17 @@ import {
 } from '@sop-runtime/core';
 import { HostDeps } from './runtime_host_types.js';
 
+/**
+ * Check if the run has exceeded max_run_secs and terminate it if so.
+ *
+ * 检查运行是否超过 max_run_secs，若超时则终止运行。
+ *
+ * @param definition - The SOP definition with max_run_secs policy.
+ * @param state - The current run state.
+ * @param deps - The host dependencies for persistence and events.
+ * @returns The run state (terminated if exceeded, unchanged otherwise).
+ * @public
+ */
 export async function enforceMaxRunSecs(
   definition: SopDefinition,
   state: RunState,
@@ -54,6 +65,16 @@ export async function enforceMaxRunSecs(
   return terminated;
 }
 
+/**
+ * Build the completed result for a succeeded run, rendering the final output.
+ *
+ * 构建成功运行的完成结果，渲染最终输出。
+ *
+ * @param definition - The SOP definition with final_output template.
+ * @param state - The terminated run state.
+ * @returns An object with the state and optional final_output.
+ * @public
+ */
 export function buildCompletedResult(definition: SopDefinition, state: RunState): {
   state: RunState;
   final_output?: FinalOutput;

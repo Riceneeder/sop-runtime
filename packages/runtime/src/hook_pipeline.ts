@@ -2,12 +2,24 @@ import {JsonObject, RunState, SopDefinition, StepResult} from '@sop-runtime/defi
 import {buildStepPacket} from '@sop-runtime/core';
 import {RuntimeError} from './runtime_error.js';
 
-/** Hook control signalling that the hook wants to pause or terminate the run. */
+/**
+ * Hook control signalling that the hook wants to pause or terminate the run.
+ *
+ * 钩子控制信号，表示钩子想要暂停或终止运行。
+ *
+ * @public
+ */
 export type HookControl =
   | { action: 'pause'; reason: string }
   | { action: 'terminate'; runStatus: 'failed' | 'cancelled'; reason: string };
 
-/** BeforeStep hooks receive the built packet and may rewrite inputs or config, or request a control action. */
+/**
+ * Input provided to a BeforeStep hook function.
+ *
+ * 提供给 BeforeStep 钩子函数的输入。
+ *
+ * @public
+ */
 export interface BeforeStepHookInput {
   packet: {
     run_id: string;
@@ -31,11 +43,26 @@ export interface BeforeStepHookInput {
   state: RunState;
 }
 
+/**
+ * Function signature for a BeforeStep hook.
+ *
+ * BeforeStep 钩子的函数签名。
+ *
+ * @param input - The hook input containing the packet, definition, and state.
+ * @returns Optional modifications to inputs, config, or a control action.
+ * @public
+ */
 export type BeforeStepHook = (
   input: BeforeStepHookInput,
 ) => void | { inputs?: JsonObject; config?: JsonObject; control?: HookControl };
 
-/** AfterStep hooks receive the executor result and may rewrite result fields, or request a control action. */
+/**
+ * Input provided to an AfterStep hook function.
+ *
+ * 提供给 AfterStep 钩子函数的输入。
+ *
+ * @public
+ */
 export interface AfterStepHookInput {
   packet: {
     run_id: string;
@@ -60,14 +87,37 @@ export interface AfterStepHookInput {
   state: RunState;
 }
 
+/**
+ * Function signature for an AfterStep hook.
+ *
+ * AfterStep 钩子的函数签名。
+ *
+ * @param input - The hook input containing the packet, result, definition, and state.
+ * @returns Optional modifications to the result fields, or a control action.
+ * @public
+ */
 export type AfterStepHook = (
   input: AfterStepHookInput,
 ) => void | { result?: Partial<Pick<StepResult, 'status' | 'output' | 'artifacts' | 'error' | 'metrics'>>; control?: HookControl };
 
+/** Allowed keys for BeforeStep hook return values. BeforeStep 钩子返回值允许的键。 */
 export const BEFORE_STEP_HOOK_RESULT_KEYS = new Set(['inputs', 'config', 'control']);
+/** Allowed keys for AfterStep hook return values. AfterStep 钩子返回值允许的键。 */
 export const AFTER_STEP_HOOK_RESULT_KEYS = new Set(['result', 'control']);
+/** Allowed keys for AfterStep hook result patches. AfterStep 钩子结果补丁允许的键。 */
 export const AFTER_STEP_RESULT_PATCH_KEYS = new Set(['status', 'output', 'artifacts', 'error', 'metrics']);
 
+/**
+ * Clone a step packet into the shape expected by hook functions, with optional overrides for inputs and config.
+ *
+ * 克隆步骤数据包为钩子函数期望的形状，支持可选的输入和配置覆盖。
+ *
+ * @param packet - The built step packet from buildStepPacket.
+ * @param inputs - The (possibly hook-modified) inputs.
+ * @param config - The (possibly hook-modified) executor config.
+ * @returns A clone of the packet suitable for hook input.
+ * @public
+ */
 export function clonePacketForHook(
   packet: ReturnType<typeof buildStepPacket>,
   inputs: JsonObject,
@@ -92,6 +142,17 @@ export function clonePacketForHook(
   return structuredClone(packetForHook) as BeforeStepHookInput['packet'];
 }
 
+/**
+ * Assert that a hook return value is a plain object.
+ *
+ * 断言钩子返回值为普通对象。
+ *
+ * @param value - The value to check.
+ * @param stage - The hook stage (beforeStep or afterStep).
+ * @param index - The hook index for error diagnostics.
+ * @throws {RuntimeError} If the value is not a plain object.
+ * @public
+ */
 export function assertHookResultObject(
   value: unknown,
   stage: 'beforeStep' | 'afterStep',
@@ -107,6 +168,19 @@ export function assertHookResultObject(
   });
 }
 
+/**
+ * Assert that an object only contains allowed keys.
+ *
+ * 断言对象只包含允许的键。
+ *
+ * @param value - The object to check.
+ * @param allowedKeys - The set of allowed keys.
+ * @param stage - The hook stage for error diagnostics.
+ * @param index - The hook index for error diagnostics.
+ * @param container - The container name for error diagnostics.
+ * @throws {RuntimeError} If any key is not allowed.
+ * @public
+ */
 export function assertAllowedHookKeys(
   value: Record<string, unknown>,
   allowedKeys: Set<string>,
@@ -124,6 +198,18 @@ export function assertAllowedHookKeys(
   }
 }
 
+/**
+ * Assert that a value is a JSON-safe object.
+ *
+ * 断言值为 JSON 安全的对象。
+ *
+ * @param value - The value to check.
+ * @param stage - The hook stage for error diagnostics.
+ * @param index - The hook index for error diagnostics.
+ * @param field - The field name for error diagnostics.
+ * @throws {RuntimeError} If the value is not JSON-safe.
+ * @public
+ */
 export function assertJsonSafeObject(
   value: unknown,
   stage: 'beforeStep' | 'afterStep',
@@ -209,6 +295,17 @@ function isStrictPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null;
 }
 
+/**
+ * Validate that a hook control object has the correct shape for its action type.
+ *
+ * 校验钩子控制对象对于其动作类型具有正确的形状。
+ *
+ * @param control - The control object to validate.
+ * @param stage - The hook stage for error diagnostics.
+ * @param index - The hook index for error diagnostics.
+ * @throws {RuntimeError} If the control shape is invalid.
+ * @public
+ */
 export function validateHookControl(
   control: unknown,
   stage: 'beforeStep' | 'afterStep',

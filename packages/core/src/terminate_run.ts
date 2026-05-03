@@ -1,8 +1,28 @@
 import {RunState, SopDefinition} from '@sop-runtime/definition';
 import {CoreError} from './core_error.js';
 
+/**
+ * Valid final statuses for a terminated run.
+ *
+ * 已终止运行的有效最终状态。
+ */
 const VALID_TERMINATION_STATUSES = new Set(['cancelled', 'failed']);
 
+/**
+ * Terminate a running run with a final status, marking its current step as failed.
+ *
+ * 以最终状态终止正在运行的运行，并将当前步骤标记为 failed。
+ *
+ * @param params - Object containing the definition, state, termination details, and optional timestamp.
+ * @param params.definition - The SOP definition.
+ * @param params.state - The current run state.
+ * @param params.runStatus - The terminal status (cancelled or failed).
+ * @param params.reason - Human-readable termination reason.
+ * @param params.now - Optional timestamp for history entries.
+ * @returns The terminated run state.
+ * @throws {CoreError} If the run cannot be terminated.
+ * @public
+ */
 export function terminateRun(params: {
   definition: SopDefinition;
   state: RunState;
@@ -37,6 +57,11 @@ export function terminateRun(params: {
   };
 }
 
+/**
+ * Assert that the run can be terminated (matching definition, running, not already terminated, valid status).
+ *
+ * 断言运行可以终止（定义匹配、运行中、未终止、状态有效）。
+ */
 function assertCanTerminate(params: {
   definition: SopDefinition;
   state: RunState;
@@ -84,6 +109,11 @@ function assertCanTerminate(params: {
   }
 }
 
+/**
+ * Mark the current step state as failed if it is still active or waiting for decision.
+ *
+ * 如果当前步骤状态仍为 active 或 waiting_decision，则将其标记为 failed。
+ */
 function buildTerminatedSteps(state: RunState): RunState['steps'] {
   const hasCurrentStep = state.current_step_id !== null && state.current_attempt !== null;
   if (!hasCurrentStep) return state.steps;

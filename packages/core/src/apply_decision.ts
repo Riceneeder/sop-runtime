@@ -17,6 +17,20 @@ import {
   applyTerminateTransition,
 } from './decision_transition.js';
 
+/**
+ * Apply a supervision decision to a run that is awaiting decision, transitioning to the next step, retrying, or terminating.
+ *
+ * 将监督决策应用到 awaiting_decision 状态的运行，转移到下一步、重试或终止。
+ *
+ * @param params - Object containing the definition, state, decision, and optional timestamp.
+ * @param params.definition - The SOP definition.
+ * @param params.state - The current run state (must be in awaiting_decision phase).
+ * @param params.decision - The supervision decision to apply.
+ * @param params.now - Optional timestamp for history entries.
+ * @returns The updated run state after the decision is applied.
+ * @throws {CoreError} If the decision is rejected or the transition is invalid.
+ * @public
+ */
 export function applyDecision(params: {
   definition: SopDefinition;
   state: RunState;
@@ -65,6 +79,11 @@ export function applyDecision(params: {
   });
 }
 
+/**
+ * Resolve the current step and ensure the run is not terminated.
+ *
+ * 解析当前步骤并确保运行未终止。
+ */
 function resolveCurrentStep(params: {
   definition: SopDefinition;
   state: RunState;
@@ -81,6 +100,11 @@ function resolveCurrentStep(params: {
   return step;
 }
 
+/**
+ * Dispatch the transition to the appropriate handler based on the next step ID.
+ *
+ * 根据下一步标识分发到对应的转移处理器。
+ */
 function dispatchNextStep(
   nextStepId: string,
   currentStep: CurrentStepView,

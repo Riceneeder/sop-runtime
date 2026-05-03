@@ -2,6 +2,16 @@ import { JsonValue } from './json_value.js';
 import { ExpressionNode, ExpressionSyntaxError } from './expression_ast.js';
 import { splitTopLevelArguments } from './expression_argument_splitter.js';
 
+/**
+ * Parse an expression body string into an ExpressionNode AST, dispatching to reference, coalesce, or literal parsers.
+ *
+ * 将表达式体字符串解析为 ExpressionNode AST，分发到引用、coalesce 或字面量解析器。
+ *
+ * @param body - The raw expression body string (without `${}` delimiters).
+ * @returns The parsed expression AST node.
+ * @throws {ExpressionSyntaxError} If the expression is malformed or unsupported.
+ * @public
+ */
 export function parseExpressionBody(body: string): ExpressionNode {
   const trimmed = body.trim();
   if (trimmed.length === 0) {

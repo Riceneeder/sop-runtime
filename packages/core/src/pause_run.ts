@@ -2,6 +2,20 @@ import {RunState, SopDefinition} from '@sop-runtime/definition';
 import {CoreError} from './core_error.js';
 import {assertDefinitionMatchesRun} from './get_current_step.js';
 
+/**
+ * Pause a running run, preserving its current phase for later resumption.
+ *
+ * 暂停正在运行的运行，保留当前阶段以便后续恢复。
+ *
+ * @param params - Object containing the definition, state, reason, and optional timestamp.
+ * @param params.definition - The SOP definition.
+ * @param params.state - The current run state (must be in ready or awaiting_decision phase).
+ * @param params.reason - Human-readable pause reason.
+ * @param params.now - Optional timestamp for history entries.
+ * @returns The paused run state.
+ * @throws {CoreError} If the run cannot be paused.
+ * @public
+ */
 export function pauseRun(params: {
   definition: SopDefinition;
   state: RunState;
@@ -48,6 +62,11 @@ export function pauseRun(params: {
   };
 }
 
+/**
+ * Build a history entry recording that the run was paused.
+ *
+ * 构建记录运行已暂停的历史条目。
+ */
 function buildRunPausedHistory(params: {
   reason: string;
   now?: string;

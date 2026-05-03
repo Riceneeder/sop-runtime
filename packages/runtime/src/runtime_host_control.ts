@@ -12,6 +12,18 @@ import { requireRun, assertDefinitionMatchesRun } from './runtime_host_state.js'
 import { enforceMaxRunSecs } from './runtime_host_deadline.js';
 import { HookControl } from './hook_pipeline.js';
 
+/**
+ * Handle a hook control action (pause or terminate) by executing the corresponding core function and persisting.
+ *
+ * 处理钩子控制动作（暂停或终止），执行对应的核心函数并持久化。
+ *
+ * @param deps - The host dependencies.
+ * @param control - The hook control action.
+ * @param definition - The SOP definition.
+ * @param state - The current run state.
+ * @returns The updated run state.
+ * @public
+ */
 export async function handleControl(
   deps: HostDeps,
   control: HookControl,
@@ -55,6 +67,18 @@ export async function handleControl(
   return terminated;
 }
 
+/**
+ * Pause a run by its identifier with a human-readable reason.
+ *
+ * 根据标识符暂停运行，附带人类可读的原因。
+ *
+ * @param deps - The host dependencies.
+ * @param definition - The SOP definition.
+ * @param runId - The run identifier.
+ * @param reason - Pause reason.
+ * @returns The paused run state.
+ * @public
+ */
 export async function pauseRunImpl(
   deps: HostDeps,
   definition: SopDefinition,
@@ -83,6 +107,17 @@ export async function pauseRunImpl(
   return paused;
 }
 
+/**
+ * Resume a paused run by its identifier.
+ *
+ * 根据标识符恢复已暂停的运行。
+ *
+ * @param deps - The host dependencies.
+ * @param definition - The SOP definition.
+ * @param runId - The run identifier.
+ * @returns The resumed run state.
+ * @public
+ */
 export async function resumeRunImpl(
   deps: HostDeps,
   definition: SopDefinition,
@@ -109,6 +144,19 @@ export async function resumeRunImpl(
   return resumed;
 }
 
+/**
+ * Terminate a run by its identifier with a final status and reason.
+ *
+ * 根据标识符终止运行，附带最终状态和原因。
+ *
+ * @param deps - The host dependencies.
+ * @param definition - The SOP definition.
+ * @param runId - The run identifier.
+ * @param runStatus - The terminal status (cancelled or failed).
+ * @param reason - Termination reason.
+ * @returns The terminated run state.
+ * @public
+ */
 export async function terminateRunImpl(
   deps: HostDeps,
   definition: SopDefinition,

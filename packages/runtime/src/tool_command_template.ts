@@ -1,5 +1,15 @@
 import { JsonObject } from '@sop-runtime/definition';
 
+/**
+ * Render a command template by replacing `${path}` placeholders with values from the input object.
+ *
+ * 渲染命令模板，将 `${path}` 占位符替换为输入对象中的值。
+ *
+ * @param template - The command template string containing `${path}` placeholders.
+ * @param inputs - The input object to resolve placeholder paths against.
+ * @returns The rendered command string.
+ * @public
+ */
 export function renderCommandTemplate(template: string, inputs: JsonObject): string {
   return template.replaceAll(/\$\{([^}]+)\}/g, (_match, capture: string) => {
     const value = resolvePath(inputs, capture.trim());
@@ -16,6 +26,16 @@ export function renderCommandTemplate(template: string, inputs: JsonObject): str
   });
 }
 
+/**
+ * Walk a dotted path into a JSON object and return the resolved value.
+ *
+ * 沿点号路径访问 JSON 对象并返回解析后的值。
+ *
+ * @param root - The root JSON object to start from.
+ * @param dottedPath - The dotted path string (e.g. "user.name").
+ * @returns The resolved value, or undefined if the path cannot be resolved.
+ * @public
+ */
 export function resolvePath(root: JsonObject, dottedPath: string): unknown {
   if (dottedPath.length === 0) {
     return undefined;

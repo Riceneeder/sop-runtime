@@ -6,6 +6,13 @@ import {
 import {isJsonSafeValue, isStrictPlainObject} from '@sop-runtime/definition';
 import {CoreError} from './core_error.js';
 
+/**
+ * Set of allowed top-level field keys for an incoming StepResult.
+ *
+ * 入站 StepResult 允许的顶层字段键集合。
+ *
+ * @public
+ */
 export const STEP_RESULT_ALLOWED_KEYS = new Set([
   'run_id',
   'step_id',
@@ -17,6 +24,15 @@ export const STEP_RESULT_ALLOWED_KEYS = new Set([
   'metrics',
 ]);
 
+/**
+ * Validate the shape and types of an incoming StepResult before processing.
+ *
+ * 在处理前校验入站 StepResult 的形状和类型。
+ *
+ * @param stepResult - The raw step result to validate.
+ * @throws {CoreError} If any field is missing, mismatched, or has an invalid type.
+ * @public
+ */
 export function validateStepResultShape(stepResult: StepResult): void {
   const value = stepResult as unknown;
   if (!isStrictPlainObject(value)) {
@@ -63,14 +79,29 @@ export function validateStepResultShape(stepResult: StepResult): void {
   }
 }
 
+/**
+ * Check that a value is a JSON-safe object (plain object with all-JSON children).
+ *
+ * 检查值是否为 JSON 安全的对象（普通对象且所有子值也为 JSON 安全）。
+ */
 function isJsonSafeObject(value: unknown): value is Record<string, unknown> {
   return isStrictPlainObject(value) && Object.values(value).every((item) => isJsonSafeValue(item));
 }
 
+/**
+ * Check that a value is a string-to-string record.
+ *
+ * 检查值是否为字符串到字符串的映射记录。
+ */
 function isStringRecord(value: unknown): value is Record<string, string> {
   return isStrictPlainObject(value) && Object.values(value).every((item) => typeof item === 'string');
 }
 
+/**
+ * Check that a value conforms to the StepError shape (or null).
+ *
+ * 检查值是否符合 StepError 形状（或 null）。
+ */
 function isValidStepError(value: unknown): value is StepError | null {
   if (value === null) {
     return true;

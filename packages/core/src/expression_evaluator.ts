@@ -7,11 +7,23 @@ import {
 } from '@sop-runtime/definition';
 import {CoreError} from './core_error.js';
 
+/**
+ * Internal details about a missing expression value.
+ *
+ * 表达式值缺失的内部细节信息。
+ */
 interface MissingExpressionValueDetails {
+  /** The raw expression string. 原始表达式字符串。 */
   expression: string;
+  /** Optional segment identifier within the expression. 表达式内可选的片段标识。 */
   segment?: string;
 }
 
+/**
+ * Internal error raised when an expression cannot resolve a required value.
+ *
+ * 当表达式无法解析所需值时抛出的内部错误。
+ */
 class MissingExpressionValueError extends Error {
   readonly details: MissingExpressionValueDetails;
 
@@ -22,6 +34,18 @@ class MissingExpressionValueError extends Error {
   }
 }
 
+/**
+ * Evaluate an expression template against the current run state.
+ *
+ * 基于当前运行状态解析表达式模板。
+ *
+ * @param params - Object containing the template and the run state.
+ * @param params.template - The expression template string to evaluate.
+ * @param params.state - Current run state used for variable resolution.
+ * @returns The evaluated JSON value.
+ * @throws {CoreError} If evaluation fails or the template is malformed.
+ * @public
+ */
 export function evaluateExpressionTemplate(params: {
   template: string;
   state: RunState;
@@ -61,6 +85,18 @@ export function evaluateExpressionTemplate(params: {
   }
 }
 
+/**
+ * Recursively render expression templates within a JSON value.
+ *
+ * 递归渲染 JSON 值中的表达式模板。
+ *
+ * @param params - Object containing the JSON value and the run state.
+ * @param params.value - The JSON value to render (strings are treated as templates).
+ * @param params.state - Current run state used for variable resolution.
+ * @returns The fully rendered JSON value.
+ * @throws {CoreError} If any template evaluation fails.
+ * @public
+ */
 export function renderJsonValueTemplates(params: {
   value: JsonValue;
   state: RunState;
@@ -95,6 +131,11 @@ export function renderJsonValueTemplates(params: {
   return params.value;
 }
 
+/**
+ * Evaluate an expression AST node against the run state.
+ *
+ * 基于运行状态求解表达式 AST 节点。
+ */
 function evaluateExpressionNode(node: ExpressionNode, state: RunState): JsonValue {
   if (node.kind === 'literal') {
     return node.value;
@@ -121,6 +162,11 @@ function evaluateExpressionNode(node: ExpressionNode, state: RunState): JsonValu
   return evaluateReferenceNode(node, state);
 }
 
+/**
+ * Resolve a reference expression node (run_input, step_output, step_artifacts).
+ *
+ * 解析引用表达式节点（run_input、step_output、step_artifacts）。
+ */
 function evaluateReferenceNode(node: Extract<ExpressionNode, {kind: 'reference'}>, state: RunState): JsonValue {
   if (node.source === 'run_input') {
     return readPath(state.run_input, node.path, node.raw);
@@ -163,6 +209,11 @@ function evaluateReferenceNode(node: Extract<ExpressionNode, {kind: 'reference'}
   return readPath(acceptedResult.artifacts, node.path, node.raw);
 }
 
+/**
+ * Walk a dotted path into a nested object and return the resolved value.
+ *
+ * 沿点号路径访问嵌套对象并返回解析后的值。
+ */
 function readPath(root: unknown, path: string[], expression: string): JsonValue {
   let current: unknown = root;
 
@@ -213,6 +264,11 @@ function readPath(root: unknown, path: string[], expression: string): JsonValue 
   return current;
 }
 
+/**
+ * Convert an evaluated JSON value into a string for template interpolation.
+ *
+ * 将已求解的 JSON 值转换为字符串用于模板插值。
+ */
 function stringifyTemplateValue(value: JsonValue): string {
   if (typeof value === 'string') {
     return value;
@@ -224,6 +280,11 @@ function stringifyTemplateValue(value: JsonValue): string {
   return JSON.stringify(value);
 }
 
+/**
+ * Render an expression AST node back to its string representation.
+ *
+ * 将表达式 AST 节点还原为字符串表示形式。
+ */
 function stringifyExpressionNode(node: ExpressionNode): string {
   if (node.kind === 'literal') {
     return JSON.stringify(node.value);
@@ -236,6 +297,11 @@ function stringifyExpressionNode(node: ExpressionNode): string {
   return `coalesce(${renderedChildren.join(', ')})`;
 }
 
+/**
+ * Normalize any thrown value into a CoreError for expression failures.
+ *
+ * 将任意抛出的值归一化为表达式失败的 CoreError。
+ */
 function toExpressionError(error: unknown, details: Record<string, unknown>): CoreError {
   if (error instanceof CoreError) {
     return error;
@@ -265,6 +331,11 @@ function toExpressionError(error: unknown, details: Record<string, unknown>): Co
   });
 }
 
+/**
+ * Type-guard: check whether a value conforms to the JsonValue type.
+ *
+ * 类型守卫：检查值是否符合 JsonValue 类型。
+ */
 function isJsonValue(value: unknown): value is JsonValue {
   if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
     return true;
@@ -281,6 +352,11 @@ function isJsonValue(value: unknown): value is JsonValue {
   return false;
 }
 
+/**
+ * Type-guard: check whether a value is a plain object (not array, not null).
+ *
+ * 类型守卫：检查值是否为普通对象（非数组、非 null）。
+ */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false;
@@ -290,6 +366,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null;
 }
 
+/**
+ * Type-guard: check whether an unknown value is a MissingExpressionValueError.
+ *
+ * 类型守卫：检查未知值是否为 MissingExpressionValueError。
+ */
 function isMissingExpressionValueError(error: unknown): error is MissingExpressionValueError {
   return error instanceof MissingExpressionValueError;
 }

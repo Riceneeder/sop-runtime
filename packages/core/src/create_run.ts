@@ -2,6 +2,20 @@ import {JsonObject, RunState, SopDefinition, StepState} from '@sop-runtime/defin
 import {validateDefinition, validateRuntimeValue} from '@sop-runtime/validator';
 import {CoreError} from './core_error.js';
 
+/**
+ * Create an initial RunState from a validated SOP definition and run input.
+ *
+ * 基于已验证的 SOP 定义和运行输入创建初始 RunState。
+ *
+ * @param params - Object containing the definition, input, run ID, and optional timestamp.
+ * @param params.definition - The SOP definition to initialize from.
+ * @param params.input - The run input payload.
+ * @param params.runId - Unique identifier for this run.
+ * @param params.now - Optional timestamp for history entries.
+ * @returns The initial run state with phase set to ready.
+ * @throws {CoreError} If the definition or input validation fails.
+ * @public
+ */
 export function createRun(params: {
   definition: SopDefinition;
   input: JsonObject;
@@ -32,6 +46,11 @@ export function createRun(params: {
   };
 }
 
+/**
+ * Validate the definition and merge defaults with the provided input.
+ *
+ * 校验定义并将默认值与提供的输入合并。
+ */
 function validateAndMergeInput(definition: SopDefinition, input: JsonObject): JsonObject {
   const validation = validateDefinition(definition);
   if (!validation.ok) {
@@ -60,6 +79,11 @@ function validateAndMergeInput(definition: SopDefinition, input: JsonObject): Js
   return runInput;
 }
 
+/**
+ * Build the initial step state map, marking the entry step as active.
+ *
+ * 构建初始步骤状态映射，将入口步骤标记为 active。
+ */
 function buildInitialSteps(definition: SopDefinition): Record<string, StepState> {
   const steps: Record<string, StepState> = {};
   for (const step of definition.steps) {

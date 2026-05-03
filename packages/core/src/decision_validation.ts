@@ -6,6 +6,15 @@ import {isStrictPlainObject} from '@sop-runtime/definition';
 import {CoreError} from './core_error.js';
 import {CurrentStepView} from './get_current_step.js';
 
+/**
+ * Assert that the run is in the awaiting_decision phase and can accept decisions.
+ *
+ * 断言运行处于 awaiting_decision 阶段，可以接收决策。
+ *
+ * @param state - The run state to validate.
+ * @throws {CoreError} If the run is not awaiting a decision.
+ * @public
+ */
 export function assertAcceptingDecision(state: RunState): void {
   if (state.status !== 'running' || state.phase !== 'awaiting_decision') {
     throw new CoreError('invalid_state', {
@@ -18,6 +27,15 @@ export function assertAcceptingDecision(state: RunState): void {
   }
 }
 
+/**
+ * Validate the shape and types of an incoming Decision object.
+ *
+ * 校验入站 Decision 对象的形状和类型。
+ *
+ * @param decision - The decision to validate.
+ * @throws {CoreError} If any field is missing or has an invalid type.
+ * @public
+ */
 export function validateDecisionShape(decision: Decision): void {
   const value = decision as unknown;
   if (!isStrictPlainObject(value)) {
@@ -46,6 +64,19 @@ export function validateDecisionShape(decision: Decision): void {
   }
 }
 
+/**
+ * Validate that a decision matches the current run context (step, attempt, outcome).
+ *
+ * 校验决策与当前运行上下文（步骤、尝试次数、结果）一致。
+ *
+ * @param params - Object containing the decision, current step view, and run state.
+ * @param params.decision - The decision to validate.
+ * @param params.currentStep - The resolved current step view.
+ * @param params.state - The run state.
+ * @returns The matched accepted result.
+ * @throws {CoreError} If the decision does not match the current context.
+ * @public
+ */
 export function validateDecisionContext(params: {
   decision: Decision;
   currentStep: CurrentStepView;
@@ -56,6 +87,11 @@ export function validateDecisionContext(params: {
   validateOutcomeIsAllowed(params.decision.outcome_id, params.currentStep);
 }
 
+/**
+ * Verify that the decision targets the correct run, step, and attempt.
+ *
+ * 验证决策指向正确的运行、步骤和尝试次数。
+ */
 function validateDecisionMatchesCurrentStep(params: {
   decision: Decision;
   currentStep: CurrentStepView;
@@ -92,6 +128,11 @@ function validateDecisionMatchesCurrentStep(params: {
   }
 }
 
+/**
+ * Verify that an accepted result exists for the current step and matches the context.
+ *
+ * 验证当前步骤存在已接纳的结果且与上下文匹配。
+ */
 function validateAcceptedResultPresentAndMatch(params: {
   currentStep: CurrentStepView;
   state: RunState;
@@ -117,6 +158,11 @@ function validateAcceptedResultPresentAndMatch(params: {
   return acceptedResult;
 }
 
+/**
+ * Verify that the outcome is listed in the step's allowed outcomes.
+ *
+ * 验证结果属于步骤允许的结果列表。
+ */
 function validateOutcomeIsAllowed(outcomeId: string, currentStep: CurrentStepView): void {
   const allowedOutcomeIds = currentStep.step.supervision.allowed_outcomes.map((outcome) => outcome.id);
   if (!allowedOutcomeIds.includes(outcomeId)) {

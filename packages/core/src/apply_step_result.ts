@@ -9,6 +9,20 @@ import {assertDefinitionMatchesRun, getCurrentStep} from './get_current_step.js'
 import {buildStepResultAcceptedHistory} from './step_result_history.js';
 import {validateStepResultShape} from './step_result_validation.js';
 
+/**
+ * Accept a raw step result, validate it, normalize it, and transition the run to awaiting_decision.
+ *
+ * 接纳原始步骤结果，校验并归一化，然后将运行转换为 awaiting_decision 阶段。
+ *
+ * @param params - Object containing the definition, state, step result, and optional timestamp.
+ * @param params.definition - The SOP definition.
+ * @param params.state - The current run state (must be in ready phase).
+ * @param params.stepResult - The raw step result from the executor.
+ * @param params.now - Optional timestamp for history entries.
+ * @returns The updated run state with phase set to awaiting_decision.
+ * @throws {CoreError} If validation fails or the run is not accepting results.
+ * @public
+ */
 export function applyStepResult(params: {
   definition: SopDefinition;
   state: RunState;
@@ -59,6 +73,11 @@ export function applyStepResult(params: {
   };
 }
 
+/**
+ * Assert that the run is in the ready phase and can accept step results.
+ *
+ * 断言运行处于 ready 阶段，可以接纳步骤结果。
+ */
 function assertAcceptingStepResult(state: RunState): void {
   if (state.status !== 'running' || state.phase !== 'ready') {
     throw new CoreError('invalid_state', {
@@ -71,6 +90,11 @@ function assertAcceptingStepResult(state: RunState): void {
   }
 }
 
+/**
+ * Resolve the current step and ensure the run is not terminated.
+ *
+ * 解析当前步骤并确保运行未终止。
+ */
 function resolveCurrentStep(params: {
   definition: SopDefinition;
   state: RunState;
@@ -87,6 +111,11 @@ function resolveCurrentStep(params: {
   return step;
 }
 
+/**
+ * Validate that the step result matches the current run, step, and attempt.
+ *
+ * 校验步骤结果与当前运行、步骤和尝试次数一致。
+ */
 function validateStepResultContext(params: {
   stepResult: StepResult;
   currentStep: NonNullable<ReturnType<typeof getCurrentStep>>;

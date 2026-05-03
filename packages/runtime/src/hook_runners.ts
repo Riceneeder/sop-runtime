@@ -19,6 +19,18 @@ import {
   validateHookControl,
 } from './hook_pipeline.js';
 
+/**
+ * Execute all registered before-step hooks in order, collecting modifications and control actions.
+ *
+ * 按顺序执行所有已注册的前置步骤钩子，收集修改和控制动作。
+ *
+ * @param deps - The host dependencies containing beforeStep hooks.
+ * @param packet - The built step packet.
+ * @param definition - The SOP definition.
+ * @param state - The current run state.
+ * @returns The potentially modified inputs, config, and any control action.
+ * @public
+ */
 export async function runBeforeStepHooks(
   deps: HostDeps,
   packet: ReturnType<typeof buildStepPacket>,
@@ -89,6 +101,19 @@ function processBeforeHook(
   return hookResult;
 }
 
+/**
+ * Execute all registered after-step hooks in order, collecting result modifications and control actions.
+ *
+ * 按顺序执行所有已注册的后置步骤钩子，收集结果修改和控制动作。
+ *
+ * @param deps - The host dependencies containing afterStep hooks.
+ * @param packet - The built step packet.
+ * @param result - The step result from the executor.
+ * @param definition - The SOP definition.
+ * @param state - The current run state.
+ * @returns The potentially modified result and any control action.
+ * @public
+ */
 export async function runAfterStepHooks(
   deps: HostDeps,
   packet: ReturnType<typeof buildStepPacket>,

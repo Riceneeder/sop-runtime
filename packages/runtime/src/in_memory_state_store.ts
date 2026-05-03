@@ -8,20 +8,41 @@ import {
 } from './state_store.js';
 import {RuntimeError} from './runtime_error.js';
 
-/** Single-process StateStore implementation for tests and lightweight embedding. 面向测试与轻量嵌入场景的单进程 StateStore 实现。 */
+/**
+ * Single-process StateStore implementation for tests and lightweight embedding.
+ *
+ * 面向测试与轻量嵌入场景的单进程 StateStore 实现。
+ *
+ * @public
+ */
 export class InMemoryStateStore implements StateStore {
   private readonly runs = new Map<string, RunState>();
   private readonly records = new Map<string, RunRecord>();
 
+  /**
+   * Load a run state by its identifier.
+   *
+   * 根据标识符加载运行状态。
+   */
   async loadRun(runId: string): Promise<RunState | null> {
     const state = this.runs.get(runId);
     return state === undefined ? null : structuredClone(state);
   }
 
+  /**
+   * Save a run state by its identifier.
+   *
+   * 根据标识符保存运行状态。
+   */
   async saveRun(state: RunState): Promise<void> {
     this.runs.set(state.run_id, structuredClone(state));
   }
 
+  /**
+   * Save a run state and update the associated run record.
+   *
+   * 保存运行状态并更新关联的运行记录。
+   */
   async saveRunState(state: RunState): Promise<void> {
     this.runs.set(state.run_id, structuredClone(state));
 
@@ -39,15 +60,30 @@ export class InMemoryStateStore implements StateStore {
     });
   }
 
+  /**
+   * Load a run record by its identifier.
+   *
+   * 根据标识符加载运行记录。
+   */
   async loadRunRecord(runId: string): Promise<RunRecord | null> {
     const record = this.records.get(runId);
     return record === undefined ? null : structuredClone(record);
   }
 
+  /**
+   * Save a run record by its identifier.
+   *
+   * 根据标识符保存运行记录。
+   */
   async saveRunRecord(record: RunRecord): Promise<void> {
     this.records.set(record.run_id, structuredClone(record));
   }
 
+  /**
+   * Atomically claim a run start, enforcing idempotency, cooldown, and concurrency policies.
+   *
+   * 原子化声明运行启动，强制执行幂等性、冷却和并发策略。
+   */
   async claimRunStart(params: ClaimRunStartParams): Promise<ClaimRunStartResult> {
     // Keep all start-policy checks and writes in one synchronous critical section. 在同一个同步临界区完成启动策略校验与写入。
     const idempotentRecord = this.findRecord((candidate) => {
@@ -129,6 +165,11 @@ export class InMemoryStateStore implements StateStore {
     };
   }
 
+  /**
+   * Find a run record by its idempotency key.
+   *
+   * 根据幂等键查找运行记录。
+   */
   async findRunByIdempotencyKey(lookup: RunRecordLookup): Promise<RunRecord | null> {
     const record = this.findRecord((candidate) => {
       return candidate.sop_id === lookup.sop_id
@@ -138,11 +179,21 @@ export class InMemoryStateStore implements StateStore {
     return record === null ? null : structuredClone(record);
   }
 
+  /**
+   * Find a running run record by its concurrency key.
+   *
+   * 根据并发键查找正在运行的运行记录。
+   */
   async findRunningRunByConcurrencyKey(lookup: RunRecordLookup): Promise<RunRecord | null> {
     const record = this.findRunningRecordByConcurrencyKey(lookup);
     return record === null ? null : structuredClone(record);
   }
 
+  /**
+   * Find the latest run record by its concurrency key.
+   *
+   * 根据并发键查找最新的运行记录。
+   */
   async findLatestRunByConcurrencyKey(lookup: RunRecordLookup): Promise<RunRecord | null> {
     let latest: RunRecord | null = null;
     for (const record of this.records.values()) {

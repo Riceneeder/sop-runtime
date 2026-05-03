@@ -1,47 +1,97 @@
 import { JsonObject, StepResult } from '@sop-runtime/definition';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
+/** Internal error code for output size exceeded. 输出大小超限的内部错误码。 */
 const CODE_OUTPUT_SIZE = 'max_output_bytes_exceeded';
+/** Internal error code for artifact count exceeded. 制品数量超限的内部错误码。 */
 const CODE_ARTIFACT_COUNT = 'max_artifacts_exceeded';
+/** Internal error code for non-serializable output. 输出无法序列化的内部错误码。 */
 const CODE_NON_SERIALIZABLE = 'non_serializable_output';
+
+/**
+ * Max allowed value for setTimeout in milliseconds (signed 32-bit int).
+ *
+ * setTimeout 最大允许值（有符号 32 位整数）。
+ *
+ * @public
+ */
 export const MAX_SET_TIMEOUT_MS = 2_147_483_647;
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
+/**
+ * Policy for handling payloads that exceed resource limits.
+ *
+ * 超出资源限制时的负载处理策略。
+ *
+ * @public
+ */
 export type InvalidPayloadPolicy = 'convert_to_sandbox_error' | 'preserve';
 
+/**
+ * Parameters for enforceResourceLimits.
+ *
+ * enforceResourceLimits 的参数。
+ *
+ * @public
+ */
 export interface EnforceResourceLimitsParams {
+  /** The step result to enforce limits against. 需要执行限制的步骤结果。 */
   result: StepResult;
+  /** The resource limits to enforce. 需要执行限制的资源限制。 */
   resourceLimits: { max_output_bytes: number; max_artifacts: number };
+  /** Run identifier for error result construction. 用于错误结果构造的运行标识符。 */
   runId: string;
+  /** Step identifier for error result construction. 用于错误结果构造的步骤标识符。 */
   stepId: string;
+  /** Attempt number for error result construction. 用于错误结果构造的尝试次数。 */
   attempt: number;
+  /** Policy for handling invalid payloads (default: convert_to_sandbox_error). 处理无效负载的策略（默认：convert_to_sandbox_error）。 */
   invalidPayloadPolicy?: InvalidPayloadPolicy;
 }
 
+/**
+ * Result indicating the handler timed out.
+ *
+ * 指示处理器超时的结果。
+ *
+ * @public
+ */
 export interface TimeoutResult {
   kind: 'timeout';
 }
 
+/**
+ * Result indicating the handler threw an error.
+ *
+ * 指示处理器抛出错误的结果。
+ *
+ * @public
+ */
 export interface ErrorResult {
   kind: 'error';
   error: unknown;
 }
 
+/**
+ * Result indicating the handler completed successfully.
+ *
+ * 指示处理器成功完成的结果。
+ *
+ * @public
+ */
 export interface HandlerResult {
   kind: 'result';
   result: StepResult;
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
+/**
+ * Execute a handler function with a timeout guard.
+ *
+ * 在超时保护下执行处理器函数。
+ *
+ * @param handler - The handler to execute.
+ * @param timeoutSecs - Timeout in seconds.
+ * @returns The result of execution (handler result, timeout, or error).
+ * @public
+ */
 export async function executeHandlerWithTimeout(
   handler: () => Promise<StepResult> | StepResult,
   timeoutSecs: number,
@@ -75,6 +125,15 @@ export async function executeHandlerWithTimeout(
   return outcome;
 }
 
+/**
+ * Enforce output size and artifact count limits on a step result.
+ *
+ * 对步骤结果执行输出大小和制品数量限制。
+ *
+ * @param params - The enforcement parameters.
+ * @returns The original result if limits are satisfied, or a sandbox_error result if limits are exceeded.
+ * @public
+ */
 export function enforceResourceLimits(params: EnforceResourceLimitsParams): StepResult {
   const policy = params.invalidPayloadPolicy ?? 'convert_to_sandbox_error';
   const { result, resourceLimits, runId, stepId, attempt } = params;
@@ -222,6 +281,15 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   return isStrictPlainObject(value) && Object.values(value).every((v) => typeof v === 'string');
 }
 
+/**
+ * Compute the UTF-8 byte length of a JSON-serialized object.
+ *
+ * 计算 JSON 序列化后对象的 UTF-8 字节长度。
+ *
+ * @param value - The JSON object to measure.
+ * @returns The byte length, or null if serialization fails.
+ * @public
+ */
 export function computeJsonUtf8Size(value: JsonObject): number | null {
   try {
     const json = JSON.stringify(value);
@@ -234,6 +302,15 @@ export function computeJsonUtf8Size(value: JsonObject): number | null {
   }
 }
 
+/**
+ * Normalize a timeout in seconds to milliseconds, clamped to MAX_SET_TIMEOUT_MS.
+ *
+ * 将以秒为单位的超时归一化为毫秒，上限为 MAX_SET_TIMEOUT_MS。
+ *
+ * @param timeoutSecs - Timeout in seconds.
+ * @returns Timeout in milliseconds.
+ * @public
+ */
 export function normalizeTimeoutMs(timeoutSecs: number): number {
   const timeoutMs = Math.max(0, timeoutSecs * 1000);
   return Math.min(timeoutMs, MAX_SET_TIMEOUT_MS);

@@ -11,6 +11,17 @@ import {
 import { RuntimeError } from './runtime_error.js';
 import { StateStore } from './state_store.js';
 
+/**
+ * Load a run from the store and throw if it does not exist.
+ *
+ * 从存储加载运行，若不存在则抛出异常。
+ *
+ * @param store - The state store.
+ * @param runId - The run identifier.
+ * @returns The loaded run state.
+ * @throws {RuntimeError} If the run is not found.
+ * @public
+ */
 export async function requireRun(store: StateStore, runId: string): Promise<RunState> {
   const state = await store.loadRun(runId);
   if (state === null) {
@@ -23,6 +34,16 @@ export async function requireRun(store: StateStore, runId: string): Promise<RunS
   return state;
 }
 
+/**
+ * Assert that a given SOP definition matches the identity of an existing run.
+ *
+ * 断言给定 SOP 定义与现有运行的身份匹配。
+ *
+ * @param definition - The SOP definition to check.
+ * @param state - The run state to match against.
+ * @throws {RuntimeError} If the sop_id or version do not match.
+ * @public
+ */
 export function assertDefinitionMatchesRun(definition: SopDefinition, state: RunState): void {
   if (definition.sop_id === state.sop_id && definition.version === state.sop_version) {
     return;
@@ -39,6 +60,16 @@ export function assertDefinitionMatchesRun(definition: SopDefinition, state: Run
   });
 }
 
+/**
+ * Get the accepted step result for the current step.
+ *
+ * 获取当前步骤的已接纳步骤结果。
+ *
+ * @param state - The run state.
+ * @returns The accepted step result.
+ * @throws {RuntimeError} If there is no current step or no accepted result.
+ * @public
+ */
 export function getCurrentAcceptedResult(state: RunState): AcceptedStepResult {
   if (state.current_step_id === null) {
     throw new RuntimeError('invalid_runtime_state', {
@@ -57,6 +88,19 @@ export function getCurrentAcceptedResult(state: RunState): AcceptedStepResult {
   return acceptedResult;
 }
 
+/**
+ * Render a policy key template against the run state, ensuring the result is a string.
+ *
+ * 基于运行状态渲染策略键模板，确保结果为字符串。
+ *
+ * @param params - Object containing the template, state, and field name for error reporting.
+ * @param params.template - The expression template to render.
+ * @param params.state - The run state.
+ * @param params.field - The field name for error diagnostics.
+ * @returns The rendered string key.
+ * @throws {RuntimeError} If the rendered value is not a string.
+ * @public
+ */
 export function renderPolicyKey(params: {
   template: string;
   state: RunState;
@@ -79,10 +123,31 @@ export function renderPolicyKey(params: {
   return rendered;
 }
 
+/**
+ * Load and return a run state by its identifier.
+ *
+ * 根据标识符加载并返回运行状态。
+ *
+ * @param store - The state store.
+ * @param runId - The run identifier.
+ * @returns The run state.
+ * @public
+ */
 export async function getRunStateImpl(store: StateStore, runId: string): Promise<RunState> {
   return requireRun(store, runId);
 }
 
+/**
+ * Load a run and resolve its current step view.
+ *
+ * 加载运行并解析其当前步骤视图。
+ *
+ * @param store - The state store.
+ * @param definition - The SOP definition.
+ * @param runId - The run identifier.
+ * @returns The current step view, or null if terminated.
+ * @public
+ */
 export async function getCurrentStepImpl(
   store: StateStore,
   definition: SopDefinition,

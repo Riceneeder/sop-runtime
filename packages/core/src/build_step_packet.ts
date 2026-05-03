@@ -3,8 +3,27 @@ import {CoreError} from './core_error.js';
 import {renderJsonValueTemplates} from './expression_evaluator.js';
 import {assertDefinitionMatchesRun, CurrentStepView, getCurrentStep} from './get_current_step.js';
 
+/**
+ * Resolved step packet type, exported for external consumers.
+ *
+ * 已解析的步骤数据包类型，导出供外部消费者使用。
+ *
+ * @public
+ */
 export type CoreStepPacket = StepPacket;
 
+/**
+ * Build a fully resolved StepPacket for the current step, rendering expression templates in inputs and executor config.
+ *
+ * 为当前步骤构建完全解析的 StepPacket，渲染输入和执行器配置中的表达式模板。
+ *
+ * @param params - Object containing the definition and current run state.
+ * @param params.definition - The SOP definition.
+ * @param params.state - The current run state (must be in ready phase).
+ * @returns The built step packet.
+ * @throws {CoreError} If the run is not ready or the current step is not active.
+ * @public
+ */
 export function buildStepPacket(params: {
   definition: SopDefinition;
   state: RunState;
@@ -27,6 +46,11 @@ export function buildStepPacket(params: {
   };
 }
 
+/**
+ * Resolve and validate that the current step is in the ready phase with active status.
+ *
+ * 解析并验证当前步骤处于 ready 阶段且状态为 active。
+ */
 function resolveReadyStep(params: {
   definition: SopDefinition;
   state: RunState;
@@ -62,6 +86,11 @@ function resolveReadyStep(params: {
   return currentStep;
 }
 
+/**
+ * Render expression templates in the step's input definitions.
+ *
+ * 渲染步骤输入定义中的表达式模板。
+ */
 function renderStepInputs(params: {
   step: SopDefinition['steps'][number];
   state: RunState;

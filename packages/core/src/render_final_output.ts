@@ -3,6 +3,18 @@ import {CoreError} from './core_error.js';
 import {renderJsonValueTemplates} from './expression_evaluator.js';
 import {assertDefinitionMatchesRun} from './get_current_step.js';
 
+/**
+ * Render the final_output template from the definition against the terminated run state.
+ *
+ * 基于已终止的运行状态渲染定义中的 final_output 模板。
+ *
+ * @param params - Object containing the definition and terminated run state.
+ * @param params.definition - The SOP definition with final_output template.
+ * @param params.state - The terminated run state.
+ * @returns The rendered final output as a JSON object.
+ * @throws {CoreError} If the run is not terminated or the output is not a JSON object.
+ * @public
+ */
 export function renderFinalOutput(params: {
   definition: SopDefinition;
   state: RunState;

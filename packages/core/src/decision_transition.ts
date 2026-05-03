@@ -12,6 +12,23 @@ import {
   buildRunTerminatedHistory,
 } from './decision_history.js';
 
+/**
+ * Apply a decision outcome that retries the current step (increments attempt).
+ *
+ * 应用重试当前步骤的决策结果（递增尝试次数）。
+ *
+ * @param params - Object containing the state, step, and retry configuration.
+ * @param params.state - The current run state.
+ * @param params.step - The step definition for retry-policy validation.
+ * @param params.stepState - The current step state.
+ * @param params.attempt - The current attempt number.
+ * @param params.outcomeId - The outcome identifier.
+ * @param params.acceptedResult - The accepted step result.
+ * @param params.now - Optional timestamp for history entries.
+ * @returns The updated run state with phase reset to ready.
+ * @throws {CoreError} If retry is not allowed by policy.
+ * @public
+ */
 export function applySameStepRetry(params: {
   state: RunState;
   step: SopDefinition['steps'][number];
@@ -60,6 +77,24 @@ export function applySameStepRetry(params: {
   };
 }
 
+/**
+ * Apply a decision outcome that transitions to the next step in the workflow.
+ *
+ * 应用转移到工作流中下一步骤的决策结果。
+ *
+ * @param params - Object containing the state and transition configuration.
+ * @param params.state - The current run state.
+ * @param params.currentStepId - The current step identifier.
+ * @param params.currentStepState - The state of the current step.
+ * @param params.nextStepId - The target step identifier to transition to.
+ * @param params.attempt - The current attempt number.
+ * @param params.acceptedResult - The accepted step result.
+ * @param params.outcomeId - The outcome identifier.
+ * @param params.now - Optional timestamp for history entries.
+ * @returns The updated run state with the next step activated.
+ * @throws {CoreError} If the next step state is missing.
+ * @public
+ */
 export function applyNextStepTransition(params: {
   state: RunState;
   currentStepId: string;
@@ -105,6 +140,23 @@ export function applyNextStepTransition(params: {
   };
 }
 
+/**
+ * Apply a decision outcome that terminates the run with a final status.
+ *
+ * 应用终止运行并设置最终状态的决策结果。
+ *
+ * @param params - Object containing the state and termination configuration.
+ * @param params.state - The current run state.
+ * @param params.currentStepId - The current step identifier.
+ * @param params.currentStepState - The state of the current step.
+ * @param params.attempt - The current attempt number.
+ * @param params.acceptedResult - The accepted step result.
+ * @param params.outcomeId - The outcome identifier.
+ * @param params.terminate - Termination configuration (run_status and reason).
+ * @param params.now - Optional timestamp for history entries.
+ * @returns The terminated run state.
+ * @public
+ */
 export function applyTerminateTransition(params: {
   state: RunState;
   currentStepId: string;
@@ -155,6 +207,11 @@ export function applyTerminateTransition(params: {
   };
 }
 
+/**
+ * Assert that a retry is permitted under the step's retry policy.
+ *
+ * 断言重试在步骤的重试策略下是允许的。
+ */
 function assertRetryAllowed(params: {
   step: SopDefinition['steps'][number];
   attempt: number;
@@ -186,6 +243,11 @@ function assertRetryAllowed(params: {
   }
 }
 
+/**
+ * Look up a step state and throw if it is missing.
+ *
+ * 查找步骤状态，若缺失则抛出异常。
+ */
 function getRequiredStepState(state: RunState, stepId: string): StepState {
   const stepState = state.steps[stepId];
   if (stepState === undefined) {
@@ -197,10 +259,20 @@ function getRequiredStepState(state: RunState, stepId: string): StepState {
   return stepState;
 }
 
+/**
+ * Convert an accepted result status to a terminal step lifecycle.
+ *
+ * 将已接纳结果状态转换为终止的步骤生命周期。
+ */
 function toCompletedStepLifecycle(status: AcceptedStepResultStatus): StepLifecycle {
   return status === 'success' ? 'completed' : 'failed';
 }
 
+/**
+ * Check whether an outcome identifier signals a retry (case-insensitive).
+ *
+ * 检查结果标识符是否表示重试（不区分大小写）。
+ */
 function isRetryLikeOutcome(outcomeId: string): boolean {
   return outcomeId.toLowerCase() === 'retry';
 }

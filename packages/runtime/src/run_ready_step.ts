@@ -16,6 +16,17 @@ import { dispatchExecutor } from './executor_dispatch.js';
 import { runBeforeStepHooks, runAfterStepHooks } from './hook_runners.js';
 import { enforceResourceLimits } from './executor_enforcer.js';
 
+/**
+ * Orchestrate the execution of a ready step: build packet, run hooks, dispatch executor, apply result.
+ *
+ * 编排就绪步骤的执行：构建数据包、运行钩子、分发执行器、应用结果。
+ *
+ * @param deps - The host dependencies.
+ * @param definition - The SOP definition.
+ * @param runId - The run identifier.
+ * @returns The updated run state after step execution.
+ * @public
+ */
 export async function runReadyStepImpl(
   deps: HostDeps,
   definition: SopDefinition,

@@ -1,5 +1,15 @@
 import { ExpressionSyntaxError } from './expression_ast.js';
 
+/**
+ * Split a comma-separated argument string at the top level, respecting nested brackets, braces, parens, and quotes.
+ *
+ * 在顶层拆分逗号分隔的参数字符串，尊重嵌套的括号、花括号、方括号和引号。
+ *
+ * @param value - The raw argument string to split.
+ * @returns An array of trimmed argument strings.
+ * @throws {ExpressionSyntaxError} If an argument is empty or braces are unbalanced.
+ * @public
+ */
 export function splitTopLevelArguments(value: string): string[] {
   const parts: string[] = [];
   const tracker = createDepthTracker(value);
