@@ -17,3 +17,12 @@ test('validate invalid definition exits 1 and prints ok:false', () => {
   expect(parsed.ok).toBe(false);
   expect(Array.isArray(parsed.diagnostics)).toBe(true);
 });
+
+test('--pretty flag formats JSON with indentation', () => {
+  const out = Bun.spawnSync([...cli, '--pretty', 'validate', 'examples/basic_sop_definition.json']);
+  expect(out.exitCode).toBe(0);
+  const stdout = out.stdout.toString();
+  expect(stdout).toInclude('\n  ');
+  const parsed = JSON.parse(stdout);
+  expect(parsed.ok).toBe(true);
+});

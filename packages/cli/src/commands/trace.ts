@@ -1,16 +1,16 @@
 import {JsonObject, SopDefinition} from '@sop-runtime/definition';
 import {buildStepPacket, createRun} from '@sop-runtime/core';
 import {validateDefinition} from '@sop-runtime/validator';
-import {getInputPath, print, readJson} from '../cli.js';
+import {CliOptions, getInputPath, print, readJson} from '../cli.js';
 
-export function runTrace(definitionPath: string | undefined, args: string[]): void {
+export function runTrace(definitionPath: string | undefined, args: string[], opts: CliOptions): void {
   const inputPath = getInputPath(args);
   const definition = readJson<SopDefinition>(definitionPath);
   const input = readJson<JsonObject>(inputPath);
 
   const v = validateDefinition(definition);
   if (!v.ok) {
-    print(v);
+    print(v, opts);
     process.exit(1);
   }
 
@@ -25,6 +25,6 @@ export function runTrace(definitionPath: string | undefined, args: string[]): vo
     phase: state.phase,
     current_step_id: state.current_step_id,
     packet,
-  });
+  }, opts);
   process.exit(0);
 }

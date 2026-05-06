@@ -1,16 +1,16 @@
 import {JsonObject, SopDefinition} from '@sop-runtime/definition';
 import {validateDefinition} from '@sop-runtime/validator';
 import {InMemoryStateStore, RuntimeHost} from '@sop-runtime/runtime';
-import {getInputPath, print, readJson} from '../cli.js';
+import {CliOptions, getInputPath, print, readJson} from '../cli.js';
 
-export async function runRun(definitionPath: string | undefined, args: string[]): Promise<void> {
+export async function runRun(definitionPath: string | undefined, args: string[], opts: CliOptions): Promise<void> {
   const inputPath = getInputPath(args);
   const definition = readJson<SopDefinition>(definitionPath);
   const input = readJson<JsonObject>(inputPath);
 
   const v = validateDefinition(definition);
   if (!v.ok) {
-    print(v);
+    print(v, opts);
     process.exit(1);
   }
 
@@ -27,6 +27,6 @@ export async function runRun(definitionPath: string | undefined, args: string[])
   const started = await host.startRun({definition, input, runId: 'cli-run'});
   const result = await host.runUntilComplete({definition, runId: started.state.run_id});
 
-  print({ok: true, state: result.state, final_output: result.final_output ?? null});
+  print({ok: true, state: result.state, final_output: result.final_output ?? null}, opts);
   process.exit(0);
 }

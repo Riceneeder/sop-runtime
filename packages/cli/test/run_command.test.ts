@@ -17,9 +17,10 @@ test('run without --input exits 1', () => {
   expect(parsed.ok).toBe(false);
 });
 
-test('run with unregistered executor exits 1', () => {
+test('run with unregistered executor exits 1 and reports executor_not_registered', () => {
   const out = Bun.spawnSync([...cli, 'run', 'packages/cli/test/fixtures/unknown_executor_sop.json', '--input', 'packages/cli/test/fixtures/invalid_input.json']);
   expect(out.exitCode).toBe(1);
   const parsed = JSON.parse(out.stdout.toString());
   expect(parsed.ok).toBe(false);
+  expect(parsed.error.code).toBe('executor_not_registered');
 });

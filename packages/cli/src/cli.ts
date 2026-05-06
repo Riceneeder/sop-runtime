@@ -3,14 +3,22 @@ import {runValidate} from './commands/validate.js';
 import {runTrace} from './commands/trace.js';
 import {runRun} from './commands/run.js';
 
-export let pretty = false;
-
-export function setPretty(v: boolean): void {
-  pretty = v;
+export interface CliOptions {
+  pretty: boolean;
 }
 
-export function print(v: unknown): void {
-  console.log(JSON.stringify(v, null, pretty ? 2 : 0));
+export function print(v: unknown, opts?: CliOptions): void {
+  console.log(JSON.stringify(v, null, opts?.pretty ? 2 : 0));
+}
+
+export function formatCliError(error: unknown): {code: string; message: string} {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as {code: unknown}).code;
+    if (typeof code === 'string') {
+      return {code, message: error instanceof Error ? error.message : String(error)};
+    }
+  }
+  return {code: 'cli_error', message: error instanceof Error ? error.message : String(error)};
 }
 
 export function readJson<T>(path: string | undefined): T {
@@ -35,10 +43,7 @@ export function getInputPath(argsList: string[]): string {
 export async function main(): Promise<void> {
   const raw = process.argv.slice(2);
   const clean = raw.filter((a) => a !== '--pretty');
-
-  if (raw.length !== clean.length) {
-    setPretty(true);
-  }
+  const opts: CliOptions = {pretty: raw.length !== clean.length};
 
   const command = clean[0];
 
@@ -54,21 +59,21 @@ export async function main(): Promise<void> {
 
   try {
     if (command === 'validate') {
-      runValidate(clean[1]);
+      runValidate(clean[1], opts);
       return;
     }
     if (command === 'trace') {
-      runTrace(clean[1], clean);
+      runTrace(clean[1], clean, opts);
       return;
     }
     if (command === 'run') {
-      await runRun(clean[1], clean);
+      await runRun(clean[1], clean, opts);
       return;
     }
     throw new Error(`unknown command: ${command}`);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    print({ok: false, error: {code: 'cli_error', message}});
+    const err = formatCliError(error);
+    print({ok: false, error: err}, opts);
     process.exit(1);
   }
 }
