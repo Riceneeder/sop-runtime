@@ -174,10 +174,9 @@ console.log(completed.final_output);
 
 - Codex 插件、MCP server 或现成的 agent 集成。
 - Definition registry、版本发布、审批流或远程 schema 分发。
-- Schema/example 的 npm package export 或远程 URL 分发路径。
+- 远程 URL schema/example 分发路径（当前仅支持 package export 和仓库路径引用）。
 - 从自然语言自动生成 SOP definition 的 authoring 层。
 - SQLite、file store、队列、租约或多 worker 调度实现。
-- 独立 CLI 包。分支上出现 CLI 包时，可再使用 `bun run cli -- validate path/to/definition.json` 这类命令。
 
 ## 约定
 
@@ -197,4 +196,13 @@ In 0.1-alpha, it does not hard-cancel underlying executor work unless AbortSigna
 - `bun run cli -- validate examples/basic_sop_definition.json`
 - `bun run cli -- trace examples/basic_sop_definition.json --input examples/basic_input.json`
 - `bun run cli -- run examples/echo_sop_definition.json --input examples/basic_input.json`
+
+## 验证命令
+
+| 命令 | 说明 |
+| --- | --- |
+| `bun run check` | lint + typecheck + 测试 |
+| `bun run pack:dry-run` | 构建后验证所有包可 pack（不发布） |
+| `bun run smoke:cli` | CLI 三个命令的基础冒烟测试 |
+| `bun run check:alpha` | 完整 alpha 验证：check → pack:dry-run → smoke:cli |
 

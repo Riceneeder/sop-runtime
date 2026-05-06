@@ -98,7 +98,7 @@ RuntimeHost 通过 `registerExecutor(kind, name, handler)` 注册执行器，`ru
 handler 接收 `{packet, definition, state, config}`，其中：
 - `input.packet.executor.config` 是 packet 内的 executor 配置，保留 definition 中的原始形态（不作模板渲染）。
 - `input.config` 是 RuntimeHost 传入的 convenience config；如果 definition 未提供 config，`input.config` 为 `{}`。
-- SDK 不解析 `executor.config` 内的模板表达式；如果具体 adapter 需要在 config 内定义模板字段，由对应 handler 自行解析（例如调用 `evaluateExpressionTemplate`）。
+- SDK 不解析 `executor.config` 内的模板表达式；如果具体 adapter 需要在 config 内定义模板字段，由对应 handler 自行解析（例如调用 `resolveExecutorConfigTemplate`）。
 
 handler 必须返回 `StepResult`，状态推进只允许通过 core `applyStepResult`。不允许 handler 绕过状态机直接修改持久化状态。
 
