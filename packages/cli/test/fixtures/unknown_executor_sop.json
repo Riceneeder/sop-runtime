@@ -1,0 +1,69 @@
+{
+  "$schema": "../../../schemas/sop-definition.schema.json",
+  "sop_id": "unknown-executor-test",
+  "name": "Unknown Executor Test",
+  "version": "1.0.0",
+  "entry_step": "step_1",
+  "input_schema": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "policies": {
+    "cooldown_secs": 0,
+    "max_run_secs": 300,
+    "idempotency_key_template": "unknown:test",
+    "concurrency": {
+      "mode": "singleflight",
+      "key_template": "unknown:test"
+    }
+  },
+  "steps": [
+    {
+      "id": "step_1",
+      "title": "Step 1",
+      "executor": {
+        "kind": "tool",
+        "name": "nonexistent",
+        "timeout_secs": 60,
+        "allow_network": false,
+        "env": {},
+        "resource_limits": {
+          "max_output_bytes": 4096,
+          "max_artifacts": 0
+        }
+      },
+      "inputs": {},
+      "output_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_secs": [],
+        "retry_on": []
+      },
+      "supervision": {
+        "allowed_outcomes": [
+          {"id": "done", "description": "Done"}
+        ],
+        "default_outcome": "done",
+        "owner": "main_agent"
+      },
+      "transitions": {
+        "done": {
+          "terminate": {
+            "reason": "done",
+            "run_status": "succeeded"
+          }
+        }
+      }
+    }
+  ],
+  "final_output": {
+    "done": "true"
+  }
+}

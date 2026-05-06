@@ -1,7 +1,7 @@
 {
   "name": "@sop-runtime/validator",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0-alpha.0",
+  "private": false,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,6 +17,23 @@
     "!dist/**/*.test.d.ts"
   ],
   "dependencies": {
-    "@sop-runtime/definition": "workspace:*"
-  }
+    "@sop-runtime/definition": "0.1.0-alpha.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Riceneeder/sop-runtime.git"
+  },
+  "keywords": [
+    "sop",
+    "workflow",
+    "runtime",
+    "deterministic",
+    "typescript"
+  ],
+  "sideEffects": false,
+  "description": "SOP definition validator for sop-runtime."
 }

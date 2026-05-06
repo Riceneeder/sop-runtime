@@ -170,7 +170,7 @@ runtime 不实现具体 CLI、MCP server、Agent 插件或沙箱。
 - 完整示例
 - TypeScript Builder API
 
-当前 v1-alpha 中，结构层 JSON Schema 以 [`schemas/sop-definition.schema.json`](../../schemas/sop-definition.schema.json) 形式存放在仓库根目录。完整的参考示例如 [`examples/basic_sop_definition.json`](../../examples/basic_sop_definition.json)，该示例通过 validator 测试覆盖。两者目前均属于仓库级工件，不作为 workspace package export 发布。远程 schema URL、npm package schema path、CLI 分发路径等发布策略不在当前范围内。
+当前 v1-alpha 中，结构层 JSON Schema 以 [`schemas/sop-definition.schema.json`](../../schemas/sop-definition.schema.json) 形式存放在仓库根目录，同时通过 `@sop-runtime/definition/schema/sop-definition.schema.json` 的 package export 路径提供。完整的参考示例如 [`examples/basic_sop_definition.json`](../../examples/basic_sop_definition.json)，同时通过 `@sop-runtime/definition/examples/basic_sop_definition.json` 的 package export 路径提供。远程 schema URL、CLI 分发路径等发布策略不在当前范围内。
 
 ### 4.1 顶层结构
 
