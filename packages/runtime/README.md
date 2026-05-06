@@ -340,3 +340,8 @@ bun run check
 npm_config_cache=/tmp/sop-runtime-npm-cache npm pack --dry-run --json ./packages/runtime
 node -e "import('./packages/runtime/dist/index.js').then(() => console.log('ok'))"
 ```
+
+## Executor config alpha contract
+
+`executor.config` remains opaque by default. Use `resolveExecutorConfigTemplate` explicitly in adapter handlers when needed.
+

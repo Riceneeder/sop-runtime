@@ -1,0 +1,56 @@
+{
+  "sop_id": "echo-demo",
+  "version": "1.0.0",
+  "start_step": "echo_step",
+  "steps": {
+    "echo_step": {
+      "title": "Echo Input",
+      "instruction": "Echo packet input",
+      "executor": {
+        "kind": "tool",
+        "name": "echo",
+        "config": {
+          "message": "{{$run_input.company}}"
+        }
+      },
+      "inputs": {
+        "company": "{{$run_input.company}}",
+        "request_id": "{{$run_input.request_id}}"
+      },
+      "on_success": {
+        "action": "complete",
+        "final_output": {
+          "echo": "{{$step_output.echo_step}}"
+        }
+      },
+      "on_error": {
+        "action": "fail",
+        "message": "echo failed"
+      }
+    }
+  },
+  "input_schema": {
+    "type": "object",
+    "required": ["company", "request_id"],
+    "properties": {
+      "company": {"type": "string"},
+      "request_id": {"type": "string"}
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object"
+  },
+  "policies": {
+    "idempotency_key_template": "{{$run_input.request_id}}",
+    "cooldown_secs": 0,
+    "concurrency": {
+      "mode": "allow",
+      "key_template": "{{$run_input.request_id}}"
+    },
+    "timeouts": {
+      "max_run_secs": 60,
+      "step_default_secs": 30
+    }
+  }
+}

@@ -41,3 +41,6 @@ export type {
 export type {ExecutorResult, RuntimeStepPacket, StepExecutor} from './step_executor.js';
 export {ToolRegistryExecutor} from './tool_registry_executor.js';
 export type {ToolHandler, ToolHandlerInput, ToolHandlerResult} from './tool_registry_executor.js';
+
+export {resolveExecutorConfigTemplate} from './resolve_executor_config_template.js';
+export type {ResolveExecutorConfigTemplateParams} from './resolve_executor_config_template.js';

@@ -185,3 +185,16 @@ console.log(completed.final_output);
 - 使用 `snake_case` 文件名。
 - 按 package responsibility 组织代码。
 - 测试文件放在对应包与 `src/` 同级的 `test/` 目录下，文件名使用 `*.test.ts`。
+
+## 0.1-alpha positioning
+
+`sop-runtime` is an embedded deterministic SOP execution kernel. It is not a full workflow platform, not a distributed worker scheduler, and does not provide sandboxing by itself.
+
+In 0.1-alpha, it does not hard-cancel underlying executor work unless AbortSignal handling is implemented by adapters. `InMemoryStateStore` is for tests, demos, and single-process embedding only. Multi-worker driving of the same run is not supported.
+
+## CLI
+
+- `bun run cli -- validate examples/basic_sop_definition.json`
+- `bun run cli -- trace examples/basic_sop_definition.json --input examples/basic_input.json`
+- `bun run cli -- run examples/echo_sop_definition.json --input examples/basic_input.json`
+

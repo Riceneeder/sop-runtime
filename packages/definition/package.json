@@ -1,7 +1,7 @@
 {
   "name": "@sop-runtime/definition",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0-alpha.0",
+  "private": false,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -9,11 +9,32 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./schema/sop-definition.schema.json": "./schemas/sop-definition.schema.json",
+    "./examples/basic_sop_definition.json": "./examples/basic_sop_definition.json"
   },
   "files": [
     "dist",
     "!dist/**/*.test.js",
-    "!dist/**/*.test.d.ts"
-  ]
+    "!dist/**/*.test.d.ts",
+    "schemas",
+    "examples"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Riceneeder/sop-runtime.git"
+  },
+  "keywords": [
+    "sop",
+    "workflow",
+    "runtime",
+    "deterministic",
+    "typescript"
+  ],
+  "sideEffects": false,
+  "description": "SOP definition types and expression utilities for sop-runtime."
 }
