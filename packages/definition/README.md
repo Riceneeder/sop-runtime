@@ -235,6 +235,11 @@ index
 
 因此，想理解 validator 为什么这么校验，通常应该先读这个包，尤其是 [`src/sop_definition.ts`](./src/sop_definition.ts) 和 [`src/expression_ast.ts`](./src/expression_ast.ts)。
 
-## 与 schema/example 的关系
+## schema/example 的 package export
 
-`@sop-runtime/definition` 不负责导出仓库根目录的 `schemas/sop-definition.schema.json` 和 `examples/basic_sop_definition.json`。这两个仓库级工件属于公开契约，但不作为 workspace package export 发布。当前暂不从 definition package 输出 schema/example 的 npm package 路径或远程 URL。
+从 `@sop-runtime/definition` 可以按以下 package export 路径引用仓库级工件：
+
+- `@sop-runtime/definition/schema/sop-definition.schema.json`：SOP definition 的 JSON Schema。
+- `@sop-runtime/definition/examples/basic_sop_definition.json`：经过 validator 测试覆盖的参考定义。
+
+这两个路径在 `package.json` 的 `exports` 字段中声明，通过 `files` 数组包含，以确保 `npm pack` 后仍可被外部消费。仓库根目录的 `schemas/` 和 `examples/` 保持同步副本作为单一事实来源。

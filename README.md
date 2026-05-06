@@ -24,8 +24,8 @@ bun run check
 - [`packages/validator`](./packages/validator/README.md)：SOP definition 的准入校验入口。
 - `packages/core`：纯状态机语义，包括创建 run、生成 step packet、应用结果和渲染最终输出。
 - [`packages/runtime`](./packages/runtime/README.md)：可嵌入运行层，组合 core 与外部端口。
-- [`schemas/sop-definition.schema.json`](./schemas/sop-definition.schema.json)：SOP definition 的结构层 JSON Schema（仓库级公开工件，暂不作为 package export 发布）。
-- [`examples/basic_sop_definition.json`](./examples/basic_sop_definition.json)：经过 validator 测试覆盖的参考定义（仓库级公开工件，暂不作为 package export 发布）。
+- [`schemas/sop-definition.schema.json`](./schemas/sop-definition.schema.json)：SOP definition 的结构层 JSON Schema（仓库级公开工件，同时通过 `@sop-runtime/definition` 的 package export 路径提供）。
+- [`examples/basic_sop_definition.json`](./examples/basic_sop_definition.json)：经过 validator 测试覆盖的参考定义（仓库级公开工件，同时通过 `@sop-runtime/definition` 的 package export 路径提供）。
 - [`docs/design`](./docs/design)：设计文档。
 - [`references/google_typescript_styleguide`](./references/google_typescript_styleguide)：本地 TypeScript 风格参考。
 
