@@ -1,56 +1,85 @@
 {
+  "$schema": "../schemas/sop-definition.schema.json",
   "sop_id": "echo-demo",
+  "name": "Echo Demo",
   "version": "1.0.0",
-  "start_step": "echo_step",
-  "steps": {
-    "echo_step": {
+  "description": "A minimal echo SOP for testing CLI run command",
+  "entry_step": "echo_step",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "ticket_id": {"type": "string"},
+      "workspace": {"type": "string"}
+    },
+    "required": ["ticket_id", "workspace"],
+    "additionalProperties": true
+  },
+  "policies": {
+    "cooldown_secs": 0,
+    "max_run_secs": 300,
+    "idempotency_key_template": "echo:${run.input.ticket_id}",
+    "concurrency": {
+      "mode": "singleflight",
+      "key_template": "echo:${run.input.ticket_id}"
+    }
+  },
+  "steps": [
+    {
+      "id": "echo_step",
       "title": "Echo Input",
-      "instruction": "Echo packet input",
+      "description": "Echo packet input back as output",
+      "inputs": {
+        "ticket_id": "${run.input.ticket_id}",
+        "workspace": "${run.input.workspace}"
+      },
       "executor": {
         "kind": "tool",
         "name": "echo",
         "config": {
-          "message": "{{$run_input.company}}"
+          "message": "${run.input.ticket_id}"
+        },
+        "timeout_secs": 60,
+        "allow_network": false,
+        "env": {},
+        "resource_limits": {
+          "max_output_bytes": 4096,
+          "max_artifacts": 0
         }
       },
-      "inputs": {
-        "company": "{{$run_input.company}}",
-        "request_id": "{{$run_input.request_id}}"
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ticket_id": {"type": "string"},
+          "workspace": {"type": "string"}
+        },
+        "required": ["ticket_id", "workspace"],
+        "additionalProperties": false
       },
-      "on_success": {
-        "action": "complete",
-        "final_output": {
-          "echo": "{{$step_output.echo_step}}"
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_secs": [],
+        "retry_on": []
+      },
+      "supervision": {
+        "allowed_outcomes": [
+          {"id": "continue", "description": "Accept the echo result and finish the run"}
+        ],
+        "default_outcome": "continue",
+        "owner": "main_agent"
+      },
+      "transitions": {
+        "continue": {
+          "terminate": {
+            "reason": "echo_complete",
+            "run_status": "succeeded"
+          }
         }
-      },
-      "on_error": {
-        "action": "fail",
-        "message": "echo failed"
       }
     }
+  ],
+  "final_output": {
+    "echoed_ticket_id": "${steps.echo_step.output.ticket_id}",
+    "echoed_workspace": "${steps.echo_step.output.workspace}"
   },
-  "input_schema": {
-    "type": "object",
-    "required": ["company", "request_id"],
-    "properties": {
-      "company": {"type": "string"},
-      "request_id": {"type": "string"}
-    },
-    "additionalProperties": true
-  },
-  "output_schema": {
-    "type": "object"
-  },
-  "policies": {
-    "idempotency_key_template": "{{$run_input.request_id}}",
-    "cooldown_secs": 0,
-    "concurrency": {
-      "mode": "allow",
-      "key_template": "{{$run_input.request_id}}"
-    },
-    "timeouts": {
-      "max_run_secs": 60,
-      "step_default_secs": 30
-    }
-  }
+  "metadata": {"example": true}
 }

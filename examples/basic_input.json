@@ -1,4 +1,4 @@
 {
-  "company": "Acme",
-  "request_id": "req-001"
+  "ticket_id": "TICKET-001",
+  "workspace": "prod"
 }

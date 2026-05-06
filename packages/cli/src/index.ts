@@ -25,9 +25,8 @@ try {
     const input = readJson<JsonObject>(inputPath);
     const v = validateDefinition(definition); if (!v.ok) { print(v); process.exit(1); }
     const state = createRun({definition, input, runId: 'trace-run', now: new Date().toISOString()});
-    const current = state.current_step_id; if (current === null) { throw new Error('current step is not ready'); }
-    const packet = buildStepPacket({definition, state, stepId: current});
-    print({ok:true, run_id: state.run_id, sop_id: state.sop_id, version: state.sop_version, phase: state.phase, current_step_id: current, packet}); process.exit(0);
+    const packet = buildStepPacket({definition, state});
+    print({ok:true, run_id: state.run_id, sop_id: state.sop_id, version: state.sop_version, phase: state.phase, current_step_id: state.current_step_id, packet}); process.exit(0);
   }
   if (command === 'run') {
     const inputPath = getInputPath(args);
@@ -35,7 +34,7 @@ try {
     const input = readJson<JsonObject>(inputPath);
     const v = validateDefinition(definition); if (!v.ok) { print(v); process.exit(1); }
     const host = new RuntimeHost({store: new InMemoryStateStore()});
-    host.registerExecutor('tool', 'echo', (ctx) => ({status:'ok', output: ctx.packet.inputs}));
+    host.registerExecutor('tool', 'echo', (ctx) => ({run_id: ctx.packet.run_id, step_id: ctx.packet.step_id, attempt: ctx.packet.attempt, status:'success', output: ctx.packet.inputs}));
     const started = await host.startRun({definition, input, runId: 'cli-run'});
     const result = await host.runUntilComplete({definition, runId: started.state.run_id});
     print({ok:true, state: result.state, final_output: result.final_output ?? null}); process.exit(0);
@@ -48,4 +47,4 @@ try {
 }
 
 function readJson<T>(path: string | undefined): T { if (!path) { throw new Error('missing json path'); } return JSON.parse(readFileSync(path, 'utf8')) as T; }
-function getInputPath(argsList: string[]): string { const idx = argsList.indexOf('--input'); if (idx < 0 || !argsList[idx + 1]) { throw new Error('missing --input'); } return argsList[idx + 1]; }
+function getInputPath(argsList: string[]): string { const idx = argsList.indexOf('--input'); if (idx < 0) { throw new Error('missing --input'); } const value = argsList[idx + 1]; if (value === undefined) { throw new Error('missing --input'); } return value; }
