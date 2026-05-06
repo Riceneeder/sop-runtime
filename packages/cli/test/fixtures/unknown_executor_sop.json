@@ -51,7 +51,7 @@
           {"id": "done", "description": "Done"}
         ],
         "default_outcome": "done",
-        "owner": "test"
+        "owner": "main_agent"
       },
       "transitions": {
         "done": {
@@ -63,5 +63,7 @@
       }
     }
   ],
-  "final_output": {}
+  "final_output": {
+    "done": "true"
+  }
 }
