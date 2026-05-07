@@ -1,5 +1,5 @@
 {
-  "name": "@sop-runtime/runtime",
+  "name": "@sop-runtime/adapter-core",
   "version": "0.1.0-alpha.0",
   "private": false,
   "type": "module",
@@ -17,7 +17,6 @@
     "!dist/**/*.test.d.ts"
   ],
   "dependencies": {
-    "@sop-runtime/adapter-core": "0.1.0-alpha.0",
     "@sop-runtime/core": "0.1.0-alpha.0",
     "@sop-runtime/definition": "0.1.0-alpha.0"
   },
@@ -33,9 +32,10 @@
     "sop",
     "workflow",
     "runtime",
-    "deterministic",
+    "adapter",
+    "executor",
     "typescript"
   ],
   "sideEffects": false,
-  "description": "Embeddable runtime host for sop-runtime."
+  "description": "Shared adapter types and helpers for sop-runtime executor adapters."
 }

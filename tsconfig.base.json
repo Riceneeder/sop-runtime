@@ -16,6 +16,7 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": false,
     "paths": {
+      "@sop-runtime/adapter-core": ["./packages/adapter-core/src/index.ts"],
       "@sop-runtime/core": ["./packages/core/src/index.ts"],
       "@sop-runtime/definition": ["./packages/definition/src/index.ts"],
       "@sop-runtime/runtime": ["./packages/runtime/src/index.ts"],

@@ -44,3 +44,39 @@ export type {ToolHandler, ToolHandlerInput, ToolHandlerResult} from './tool_regi
 
 export {resolveExecutorConfigTemplate} from './resolve_executor_config_template.js';
 export type {ResolveExecutorConfigTemplateParams} from './resolve_executor_config_template.js';
+
+export {
+  AdapterConfigError,
+  AdapterError,
+  assertJsonObject,
+  buildErrorDetails,
+  buildSandboxErrorResult,
+  buildSuccessResult,
+  buildTimeoutResult,
+  buildToolErrorResult,
+  computeJsonUtf8Size,
+  enforceResourceLimits,
+  executeHandlerWithTimeout,
+  getOptionalBoolean,
+  getOptionalJsonObject,
+  getOptionalString,
+  getOptionalStringArray,
+  getOptionalStringRecord,
+  getRequiredString,
+  MAX_SET_TIMEOUT_MS,
+  normalizeAdapterError,
+  normalizeTimeoutMs,
+  REDACTED_VALUE,
+  redactSecrets,
+} from '@sop-runtime/adapter-core';
+
+export type {
+  EnforceResourceLimitsParams,
+  ErrorResult,
+  ExecutorAdapter,
+  ExecutorAdapterRegistration,
+  ExecutorConfigResolver,
+  HandlerResult,
+  InvalidPayloadPolicy,
+  TimeoutResult,
+} from '@sop-runtime/adapter-core';

@@ -6,8 +6,7 @@
   },
   "include": ["src/**/*.ts"],
   "references": [
-    {"path": "../adapter-core"},
-    {"path": "../core"},
-    {"path": "../definition"}
+    {"path": "../definition"},
+    {"path": "../core"}
   ]
 }

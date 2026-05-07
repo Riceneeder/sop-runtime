@@ -1,34 +1,15 @@
-import {evaluateExpressionTemplate} from '@sop-runtime/core';
-import {JsonObject, JsonValue, RunState} from '@sop-runtime/definition';
+/**
+ * Compatibility re-export from @sop-runtime/adapter-core.
+ *
+ * @sop-runtime/runtime 内部及外部消费者仍可从本路径导入。
+ *
+ * @packageDocumentation
+ */
 
-export interface ResolveExecutorConfigTemplateParams {
-  config: JsonObject;
-  context: {
-    run: RunState;
-  };
-}
+export {
+  resolveExecutorConfigTemplate,
+} from '@sop-runtime/adapter-core';
 
-export function resolveExecutorConfigTemplate(params: ResolveExecutorConfigTemplateParams): JsonObject {
-  return resolveJsonValue(params.config, params.context.run) as JsonObject;
-}
-
-function resolveJsonValue(value: JsonValue, run: RunState): JsonValue {
-  if (typeof value === 'string') {
-    return evaluateExpressionTemplate({'template': value, state: run});
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => resolveJsonValue(item, run));
-  }
-  if (isJsonObject(value)) {
-    const resolved: JsonObject = {};
-    for (const [key, item] of Object.entries(value)) {
-      resolved[key] = resolveJsonValue(item, run);
-    }
-    return resolved;
-  }
-  return value;
-}
-
-function isJsonObject(value: JsonValue): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+export type {
+  ResolveExecutorConfigTemplateParams,
+} from '@sop-runtime/adapter-core';

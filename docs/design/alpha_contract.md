@@ -1,6 +1,6 @@
 # 0.1-alpha Contract
 
-Public packages: `@sop-runtime/definition`, `@sop-runtime/validator`, `@sop-runtime/core`, `@sop-runtime/runtime`, `@sop-runtime/cli`.
+Public packages: `@sop-runtime/definition`, `@sop-runtime/validator`, `@sop-runtime/core`, `@sop-runtime/adapter-core`, `@sop-runtime/runtime`, `@sop-runtime/cli`.
 
 `sop-runtime` is an embedded deterministic SOP execution kernel. It is not a full workflow platform, not a distributed worker scheduler, and does not provide sandboxing by itself.
 

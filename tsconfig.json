@@ -11,6 +11,9 @@
       "path": "./packages/core"
     },
     {
+      "path": "./packages/adapter-core"
+    },
+    {
       "path": "./packages/runtime"
     },
     {
