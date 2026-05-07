@@ -93,18 +93,25 @@
 
 ### 0.2.3 Decision、Event 与本地持久化示例
 
-- 新增 rule-based decision provider 示例
-  - 展示如何基于 accepted step output 选择非默认分支
+状态：已完成。
 
-- 新增 JSONL `EventSink`
+- 新增 `RuleBasedDecisionProvider` 示例（`packages/runtime/src/rule_based_decision_provider.ts`）
+  - 展示如何基于 accepted step output 通过 expression template 规则选择非默认分支
+  - 规则按数组顺序 first-match-wins，未匹配时可配置 fallback outcome 或显式报错
+
+- 新增 `JsonlEventSink`（`packages/runtime/src/jsonl_event_sink.ts`）
   - 将 runtime events 以每行一个 JSON object 的形式追加写入文件
-  - 保持事件顺序
-  - 写入失败时显式报错
+  - Promise 链串行化保证事件顺序
+  - 写入失败时显式 reject，不吞错
 
-- 新增 `FileStateStore` 或本地 store 示例
-  - 面向本地 demo 和开发场景
-  - 明确说明不支持多进程并发安全
-  - 如果 SQLite 会让 0.2 过重，可延后到 0.3
+- 新增 `FileStateStore`（`packages/runtime/src/file_state_store.ts`）
+  - 面向本地 demo 和开发场景的 JSON 文件持久化 StateStore
+  - 原子写入（临时文件 + rename），Promise 互斥锁串行化实例内操作
+  - 明确声明不支持多进程并发安全（SQLite 延后到 0.3）
+  - 从 `InMemoryStateStore` 提取 `state_store_helpers.ts` 共享纯函数
+
+- 新增 `RuleBasedDecisionRule` 类型导出
+- 新增 39 个测试覆盖所有新组件
 
 ### 0.2.4 Adapter 冒烟测试
 
