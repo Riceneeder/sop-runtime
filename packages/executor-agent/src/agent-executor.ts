@@ -164,6 +164,13 @@ async function executeAgent(
     return buildToolErrorResult(packet, 'agent_invalid_output', 'Agent runner returned non-object output.');
   }
 
+  // Verify output is JSON-safe (no undefined, NaN, Date, cycles, etc.)
+  try {
+    JSON.stringify(agentResult.output);
+  } catch {
+    return buildToolErrorResult(packet, 'agent_invalid_output', 'Agent runner output is not JSON-serializable.');
+  }
+
   const result = buildSuccessResult(packet, agentResult.output as JsonObject, agentResult.artifacts);
   if (agentResult.metrics) {
     return { ...result, metrics: agentResult.metrics as JsonObject };

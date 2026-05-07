@@ -1,4 +1,4 @@
-import { buildToolErrorResult, ExecutorAdapter, ExecutorHandlerInput } from '@sop-runtime/adapter-core';
+import { buildToolErrorResult, resolveExecutorConfigTemplate, ExecutorAdapter, ExecutorHandlerInput } from '@sop-runtime/adapter-core';
 import { StepPacket } from '@sop-runtime/definition';
 import { validateMethod, validateUrl, validateOrigin, validateBodyConfig } from './validation.js';
 import { executeFetchWithTimeout, buildRequestHeaders } from './request.js';
@@ -58,8 +58,13 @@ export function createHttpExecutor(options: HttpExecutorOptions): ExecutorAdapte
         );
       }
 
-      const config = input.packet.executor.config ?? {};
+      let config = input.packet.executor.config ?? {};
       const packet = input.packet as unknown as StepPacket;
+
+      // Resolve expression templates when enabled
+      if (options.resolveConfigTemplates) {
+        config = resolveExecutorConfigTemplate({ config, context: { run: input.state } });
+      }
 
       const methodResult = validateMethod(config, packet);
       if (!methodResult.ok) return methodResult.result;

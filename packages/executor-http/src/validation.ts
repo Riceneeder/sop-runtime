@@ -107,9 +107,11 @@ export function validateBodyConfig(
   const hasBodyInConfig = config.body !== undefined;
 
   const rawBodyFrom = config.body_from;
+  if (rawBodyFrom !== undefined && rawBodyFrom !== 'config' && rawBodyFrom !== 'inputs' && rawBodyFrom !== 'none') {
+    return invalidConfig(packet, `Invalid body_from value: "${rawBodyFrom}". Must be "config", "inputs", or "none".`);
+  }
   const bodyFrom: 'config' | 'inputs' | 'none' =
-    rawBodyFrom === 'config' || rawBodyFrom === 'inputs' || rawBodyFrom === 'none'
-      ? rawBodyFrom
+    rawBodyFrom !== undefined ? rawBodyFrom
       : (hasBodyInConfig ? 'config' : 'none');
 
   if (bodyFrom === 'none' && hasBodyInConfig) {

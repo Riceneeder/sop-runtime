@@ -1,7 +1,43 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
 import { ExecutorHandlerInput } from '@sop-runtime/adapter-core';
 import { SopDefinition, RunState } from '@sop-runtime/definition';
 import { createHttpExecutor, HttpExecutorOptions } from '../src/index.js';
+
+let MOCK_SERVER_URL: string;
+let mockServer: ReturnType<typeof Bun.serve>;
+
+beforeAll(() => {
+  mockServer = Bun.serve({
+    port: 0,
+    fetch(req) {
+      const url = new URL(req.url);
+      if (url.pathname === '/get') {
+        return new Response(JSON.stringify({ message: 'ok', items: [1, 2, 3] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json', 'x-custom': 'test-value' },
+        });
+      }
+      if (url.pathname === '/echo') {
+        return new Response(req.body, {
+          status: 200,
+          headers: { 'content-type': req.headers.get('content-type') || 'text/plain' },
+        });
+      }
+      if (url.pathname === '/status/404') {
+        return new Response('Not Found', { status: 404 });
+      }
+      if (url.pathname === '/redirect') {
+        return new Response(null, { status: 302, headers: { location: '/get' } });
+      }
+      return new Response('Unknown', { status: 500 });
+    },
+  });
+  MOCK_SERVER_URL = `http://localhost:${mockServer.port}`;
+});
+
+afterAll(() => {
+  mockServer.stop();
+});
 
 function makeInput(config: Record<string, unknown> = {}): ExecutorHandlerInput {
   return {
@@ -17,7 +53,7 @@ function makeInput(config: Record<string, unknown> = {}): ExecutorHandlerInput {
         allow_network: true,
         env: {},
         resource_limits: { max_output_bytes: 1048576, max_artifacts: 0 },
-        config: { method: 'GET', url: 'https://httpbin.org/get', ...config },
+        config: { method: 'GET', url: `${MOCK_SERVER_URL}/get`, ...config },
       },
       output_schema: undefined,
     },
@@ -42,13 +78,13 @@ function makeInput(config: Record<string, unknown> = {}): ExecutorHandlerInput {
 function makeOptions(overrides: Partial<HttpExecutorOptions> = {}): HttpExecutorOptions {
   return {
     allowNetwork: true,
-    allowedOrigins: ['https://httpbin.org'],
+    allowedOrigins: [MOCK_SERVER_URL],
     ...overrides,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Non-network tests
+// Non-network validation tests
 // ---------------------------------------------------------------------------
 
 describe('createHttpExecutor', () => {
@@ -108,10 +144,18 @@ describe('createHttpExecutor', () => {
 
     test('rejects URL with userinfo', async () => {
       const executor = createHttpExecutor(makeOptions());
-      const input = makeInput({ url: 'https://user:pass@httpbin.org/get' });
+      const input = makeInput({ url: `https://user:pass@${mockServer.hostname}:${mockServer.port}/get` });
       const result = await executor.handler(input);
       expect(result.status).toBe('tool_error');
       expect(result.error?.code).toBe('http_invalid_url');
+    });
+
+    test('rejects invalid body_from value', async () => {
+      const executor = createHttpExecutor(makeOptions());
+      const input = makeInput({ url: `${MOCK_SERVER_URL}/get`, body_from: 'input' });
+      const result = await executor.handler(input);
+      expect(result.status).toBe('tool_error');
+      expect(result.error?.code).toBe('http_invalid_config');
     });
   });
 
@@ -120,7 +164,7 @@ describe('createHttpExecutor', () => {
       const executor = createHttpExecutor(makeOptions());
       const input = makeInput({
         method: 'GET',
-        url: 'https://httpbin.org/get',
+        url: `${MOCK_SERVER_URL}/get`,
         body: { key: 'value' },
       });
       const result = await executor.handler(input);
@@ -132,7 +176,7 @@ describe('createHttpExecutor', () => {
       const executor = createHttpExecutor(makeOptions());
       const input = makeInput({
         method: 'POST',
-        url: 'https://httpbin.org/post',
+        url: `${MOCK_SERVER_URL}/echo`,
         body: { key: 'value' },
         body_from: 'none',
       });
@@ -143,13 +187,13 @@ describe('createHttpExecutor', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Network tests (use httpbin.org)
+  // Network tests (local mock server)
   // -----------------------------------------------------------------------
 
   describe('network requests', () => {
     test('successful GET returns output with status, headers, body', async () => {
       const executor = createHttpExecutor(makeOptions());
-      const input = makeInput({ url: 'https://httpbin.org/get' });
+      const input = makeInput({ url: `${MOCK_SERVER_URL}/get` });
       const result = await executor.handler(input);
 
       expect(result.status).toBe('success');
@@ -162,7 +206,7 @@ describe('createHttpExecutor', () => {
 
     test('non-2xx returns tool_error', async () => {
       const executor = createHttpExecutor(makeOptions());
-      const input = makeInput({ url: 'https://httpbin.org/status/404' });
+      const input = makeInput({ url: `${MOCK_SERVER_URL}/status/404` });
       const result = await executor.handler(input);
 
       expect(result.status).toBe('tool_error');
@@ -172,7 +216,7 @@ describe('createHttpExecutor', () => {
 
     test('3xx redirect returns tool_error', async () => {
       const executor = createHttpExecutor(makeOptions());
-      const input = makeInput({ url: 'https://httpbin.org/redirect/1' });
+      const input = makeInput({ url: `${MOCK_SERVER_URL}/redirect` });
       const result = await executor.handler(input);
 
       expect(result.status).toBe('tool_error');
@@ -181,13 +225,12 @@ describe('createHttpExecutor', () => {
 
     test('input is not mutated', async () => {
       const executor = createHttpExecutor(makeOptions());
-      const originalInputs = { ticket_id: 'T-001' };
-      const config = { url: 'https://httpbin.org/get' };
+      const config = { url: `${MOCK_SERVER_URL}/get` };
       const input = makeInput(config);
       const originalConfig = { ...input.packet.executor.config };
       await executor.handler(input);
 
-      expect(input.packet.inputs).toEqual(originalInputs);
+      expect(input.packet.inputs).toEqual({ ticket_id: 'T-001' });
       expect(input.packet.executor.config).toEqual(originalConfig);
     });
   });

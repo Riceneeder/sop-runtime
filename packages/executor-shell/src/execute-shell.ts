@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   buildSuccessResult,
@@ -123,6 +123,18 @@ function resolveCwdSafe(
       packet, 'shell_invalid_config', 'cwd escapes workspace root',
       { cwd: rawCwd, resolvedCwd, workspaceRoot },
     );
+  }
+  // Resolve symlinks if cwd exists, to prevent symlink escape
+  try {
+    const real = realpathSync(resolvedCwd);
+    if (real !== root && !real.startsWith(prefix)) {
+      return buildToolErrorResult(
+        packet, 'shell_invalid_config', 'cwd symlink escapes workspace root',
+        { cwd: rawCwd, resolvedCwd, real },
+      );
+    }
+  } catch {
+    // cwd does not exist yet — ok, Bun.spawn will create it or fail
   }
   return resolvedCwd;
 }

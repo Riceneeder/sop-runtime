@@ -25,6 +25,12 @@ export async function resolveSafePath(
   workspaceRoot: string,
   allowSymlinks: boolean,
 ): Promise<{ path: string } | ReturnType<typeof buildToolErrorResult>> {
+  if (rawPath.includes('\0')) {
+    return buildToolErrorResult(
+      packet, 'file_invalid_config', 'Path contains NUL byte',
+      { path: rawPath },
+    );
+  }
   if (rawPath.startsWith('/')) {
     return buildToolErrorResult(
       packet, 'file_path_outside_workspace', 'Absolute paths are not allowed',
@@ -39,6 +45,30 @@ export async function resolveSafePath(
       { path: rawPath, resolved },
     );
   }
+
+  // Check intermediate path components for symlinks when symlinks are disabled
+  if (!allowSymlinks) {
+    const segments = rawPath.split('/').filter(Boolean);
+    let partial = workspaceRoot;
+    for (const seg of segments) {
+      partial = resolve(partial, seg);
+      try {
+        const st = await lstat(partial);
+        if (st.isSymbolicLink()) {
+          return buildToolErrorResult(
+            packet, 'file_symlink_not_allowed',
+            `Symlinks are not allowed (component "${seg}" in "${rawPath}" is a symlink)`,
+            { path: rawPath, symlinkComponent: seg },
+          );
+        }
+      } catch (err: unknown) {
+        if (isNodeError(err) && err.code === 'ENOENT') break;
+        // Don't throw on errors for intermediate paths, just stop checking
+        break;
+      }
+    }
+  }
+
   try {
     const lst = await lstat(resolved);
     if (lst.isSymbolicLink() && !allowSymlinks) {
