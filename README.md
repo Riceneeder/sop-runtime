@@ -22,7 +22,7 @@ bun run check
 
 - [`packages/definition`](./packages/definition/README.md)：共享 SOP DSL、运行时状态类型和表达式解析器。
 - [`packages/validator`](./packages/validator/README.md)：SOP definition 的准入校验入口。
-- `packages/core`：纯状态机语义，包括创建 run、生成 step packet、应用结果和渲染最终输出。
+- [`packages/core`](./packages/core/README.md)：纯状态机语义，包括创建 run、生成 step packet、应用结果和渲染最终输出。
 - [`packages/adapter-core`](./packages/adapter-core/README.md)：executor adapter 共享底座类型和工具函数。
 - [`packages/runtime`](./packages/runtime/README.md)：可嵌入运行层，组合 core 与外部端口。
 - [`schemas/sop-definition.schema.json`](./schemas/sop-definition.schema.json)：SOP definition 的结构层 JSON Schema（仓库级公开工件，同时通过 `@sop-runtime/definition` 的 package export 路径提供）。
