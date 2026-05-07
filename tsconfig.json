@@ -14,6 +14,18 @@
       "path": "./packages/adapter-core"
     },
     {
+      "path": "./packages/executor-shell"
+    },
+    {
+      "path": "./packages/executor-agent"
+    },
+    {
+      "path": "./packages/executor-http"
+    },
+    {
+      "path": "./packages/executor-file"
+    },
+    {
       "path": "./packages/runtime"
     },
     {

@@ -19,6 +19,10 @@
       "@sop-runtime/adapter-core": ["./packages/adapter-core/src/index.ts"],
       "@sop-runtime/core": ["./packages/core/src/index.ts"],
       "@sop-runtime/definition": ["./packages/definition/src/index.ts"],
+      "@sop-runtime/executor-agent": ["./packages/executor-agent/src/index.ts"],
+      "@sop-runtime/executor-file": ["./packages/executor-file/src/index.ts"],
+      "@sop-runtime/executor-http": ["./packages/executor-http/src/index.ts"],
+      "@sop-runtime/executor-shell": ["./packages/executor-shell/src/index.ts"],
       "@sop-runtime/runtime": ["./packages/runtime/src/index.ts"],
       "@sop-runtime/validator": ["./packages/validator/src/index.ts"]
     }

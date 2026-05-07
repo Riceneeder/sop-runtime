@@ -1,0 +1,41 @@
+{
+  "name": "@sop-runtime/executor-file",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts"
+  ],
+  "dependencies": {
+    "@sop-runtime/adapter-core": "0.1.0-alpha.0",
+    "@sop-runtime/definition": "0.1.0-alpha.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Riceneeder/sop-runtime.git"
+  },
+  "keywords": [
+    "sop",
+    "workflow",
+    "runtime",
+    "executor",
+    "file",
+    "typescript"
+  ],
+  "sideEffects": false,
+  "description": "File executor adapter for sop-runtime — reads/writes files within workspace root as SOP steps."
+}

@@ -1,0 +1,41 @@
+{
+  "name": "@sop-runtime/executor-shell",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts"
+  ],
+  "dependencies": {
+    "@sop-runtime/adapter-core": "0.1.0-alpha.0",
+    "@sop-runtime/definition": "0.1.0-alpha.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Riceneeder/sop-runtime.git"
+  },
+  "keywords": [
+    "sop",
+    "workflow",
+    "runtime",
+    "executor",
+    "shell",
+    "typescript"
+  ],
+  "sideEffects": false,
+  "description": "Shell executor adapter for sop-runtime — spawns local commands as SOP steps."
+}
