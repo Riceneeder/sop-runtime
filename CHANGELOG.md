@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### 0.2.4-alpha.0
+
+- Add `smoke:shell` / `smoke:agent` / `smoke:http` / `smoke:file` smoke test scripts under `scripts/`, each exercising the corresponding adapter via `RuntimeHost`.
+- Add `smoke:adapter` and `check:adapter` root scripts for serial adapter smoke and full check+smoke.
+- Add `examples/shell_workflow/`, `examples/agent_workflow/`, `examples/http_workflow/`, `examples/file_workflow/` with valid SOP definitions and input examples.
+- Bump all workspace packages and CLI version to `0.2.4-alpha.0`.
+- Sync README, ROADMAP, CHANGELOG with current implementation state.
+
 ### 0.2.3-alpha.0
 
 - Add `RuleBasedDecisionProvider` — rule-based decision provider with expression template conditions and first-match-wins semantics.

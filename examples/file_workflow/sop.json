@@ -1,0 +1,84 @@
+{
+  "$schema": "../../schemas/sop-definition.schema.json",
+  "sop_id": "file-demo",
+  "name": "File Workflow Demo",
+  "version": "1.0.0",
+  "description": "Demonstrates a file executor step reading from the workspace",
+  "entry_step": "read_config",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "file_path": { "type": "string", "minLength": 1 }
+    },
+    "required": ["file_path"],
+    "additionalProperties": false
+  },
+  "policies": {
+    "cooldown_secs": 0,
+    "max_run_secs": 60,
+    "idempotency_key_template": "file-demo:${run.input.file_path}",
+    "concurrency": {
+      "mode": "singleflight",
+      "key_template": "file-demo:${run.input.file_path}"
+    }
+  },
+  "steps": [
+    {
+      "id": "read_config",
+      "title": "Read Config File",
+      "description": "Reads a file from the workspace via file executor",
+      "inputs": {
+        "file_path": "${run.input.file_path}"
+      },
+      "executor": {
+        "kind": "file",
+        "name": "file",
+        "config": {
+          "action": "read",
+          "path": "config.json"
+        },
+        "timeout_secs": 10,
+        "allow_network": false,
+        "env": {},
+        "resource_limits": {
+          "max_output_bytes": 65536,
+          "max_artifacts": 0
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "content": { "type": "string" },
+          "path": { "type": "string" }
+        },
+        "required": ["content", "path"],
+        "additionalProperties": true
+      },
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_secs": [],
+        "retry_on": []
+      },
+      "supervision": {
+        "allowed_outcomes": [
+          { "id": "accept", "description": "Accept file read output" }
+        ],
+        "default_outcome": "accept",
+        "owner": "main_agent"
+      },
+      "transitions": {
+        "accept": {
+          "terminate": {
+            "reason": "read_complete",
+            "run_status": "succeeded"
+          }
+        }
+      }
+    }
+  ],
+  "final_output": {
+    "file_content": "${steps.read_config.output.content}",
+    "file_path": "${steps.read_config.output.path}"
+  },
+  "metadata": { "example": true }
+}

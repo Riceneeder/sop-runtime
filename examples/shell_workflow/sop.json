@@ -1,0 +1,78 @@
+{
+  "$schema": "../../schemas/sop-definition.schema.json",
+  "sop_id": "shell-demo",
+  "name": "Shell Workflow Demo",
+  "version": "1.0.0",
+  "description": "Demonstrates a shell executor step that produces JSON output",
+  "entry_step": "greet",
+  "input_schema": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "policies": {
+    "cooldown_secs": 0,
+    "max_run_secs": 60,
+    "idempotency_key_template": "shell-demo:static",
+    "concurrency": {
+      "mode": "singleflight",
+      "key_template": "shell-demo:static"
+    }
+  },
+  "steps": [
+    {
+      "id": "greet",
+      "title": "Greet",
+      "description": "Echo a JSON greeting via shell echo command; the shell adapter parses stdout as JSON output",
+      "inputs": {},
+      "executor": {
+        "kind": "shell",
+        "name": "local_command",
+        "config": {
+          "command": "echo",
+          "args": ["{\"text\":\"Hello from SOP shell adapter!\"}"]
+        },
+        "timeout_secs": 10,
+        "allow_network": false,
+        "env": {},
+        "resource_limits": {
+          "max_output_bytes": 4096,
+          "max_artifacts": 0
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string" }
+        },
+        "required": ["text"],
+        "additionalProperties": false
+      },
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_secs": [],
+        "retry_on": []
+      },
+      "supervision": {
+        "allowed_outcomes": [
+          { "id": "continue", "description": "Accept the greeting" }
+        ],
+        "default_outcome": "continue",
+        "owner": "main_agent"
+      },
+      "transitions": {
+        "continue": {
+          "terminate": {
+            "reason": "greeting_complete",
+            "run_status": "succeeded"
+          }
+        }
+      }
+    }
+  ],
+  "final_output": {
+    "message": "${steps.greet.output.text}"
+  },
+  "metadata": { "example": true }
+}

@@ -55,6 +55,8 @@
 
 ### 0.2.2 第一批 Executor Adapters
 
+状态：已完成。
+
 - 新增 `@sop-runtime/executor-shell`
   - `kind: "shell"`，`name: "local_command"`
   - 使用 spawn 风格 API 执行本地命令，不支持不受限制的 shell interpolation
@@ -114,6 +116,8 @@
 - 新增 39 个测试覆盖所有新组件
 
 ### 0.2.4 Adapter 冒烟测试
+
+状态：已完成。
 
 - 新增 `smoke:adapter`
 - 新增 `smoke:shell`

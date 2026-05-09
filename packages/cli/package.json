@@ -1,6 +1,6 @@
 {
   "name": "@sop-runtime/cli",
-  "version": "0.1.0-alpha.0",
+  "version": "0.2.4-alpha.0",
   "private": false,
   "type": "module",
   "description": "Minimal SOP runtime CLI for validate/trace/run commands.",
@@ -18,9 +18,9 @@
   "exports": {".": {"types": "./dist/index.d.ts", "default": "./dist/index.js"}},
   "files": ["dist"],
   "dependencies": {
-    "@sop-runtime/core": "0.1.0-alpha.0",
-    "@sop-runtime/definition": "0.1.0-alpha.0",
-    "@sop-runtime/runtime": "0.1.0-alpha.0",
-    "@sop-runtime/validator": "0.1.0-alpha.0"
+    "@sop-runtime/core": "0.2.4-alpha.0",
+    "@sop-runtime/definition": "0.2.4-alpha.0",
+    "@sop-runtime/runtime": "0.2.4-alpha.0",
+    "@sop-runtime/validator": "0.2.4-alpha.0"
   }
 }
