@@ -52,7 +52,7 @@
           "path": { "type": "string" }
         },
         "required": ["content", "path"],
-        "additionalProperties": false
+        "additionalProperties": true
       },
       "retry_policy": {
         "max_attempts": 1,
