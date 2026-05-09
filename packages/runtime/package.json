@@ -1,6 +1,6 @@
 {
   "name": "@sop-runtime/runtime",
-  "version": "0.1.0-alpha.0",
+  "version": "0.2.4-alpha.0",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -17,9 +17,9 @@
     "!dist/**/*.test.d.ts"
   ],
   "dependencies": {
-    "@sop-runtime/adapter-core": "0.1.0-alpha.0",
-    "@sop-runtime/core": "0.1.0-alpha.0",
-    "@sop-runtime/definition": "0.1.0-alpha.0"
+    "@sop-runtime/adapter-core": "0.2.4-alpha.0",
+    "@sop-runtime/core": "0.2.4-alpha.0",
+    "@sop-runtime/definition": "0.2.4-alpha.0"
   },
   "publishConfig": {
     "access": "public"

@@ -1,0 +1,83 @@
+{
+  "$schema": "../../schemas/sop-definition.schema.json",
+  "sop_id": "agent-demo",
+  "name": "Agent Workflow Demo",
+  "version": "1.0.0",
+  "description": "Demonstrates an agent executor step with a configurable task",
+  "entry_step": "process",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "task": { "type": "string", "minLength": 1 }
+    },
+    "required": ["task"],
+    "additionalProperties": false
+  },
+  "policies": {
+    "cooldown_secs": 0,
+    "max_run_secs": 120,
+    "idempotency_key_template": "agent-demo:${run.input.task}",
+    "concurrency": {
+      "mode": "singleflight",
+      "key_template": "agent-demo:${run.input.task}"
+    }
+  },
+  "steps": [
+    {
+      "id": "process",
+      "title": "Process Task",
+      "description": "Delegates the task to a host-registered AgentRunner",
+      "inputs": {
+        "task": "${run.input.task}"
+      },
+      "executor": {
+        "kind": "agent",
+        "name": "local_agent",
+        "config": {
+          "agent_key": "default",
+          "system_prompt": "You are a helpful assistant."
+        },
+        "timeout_secs": 60,
+        "allow_network": false,
+        "env": {},
+        "resource_limits": {
+          "max_output_bytes": 65536,
+          "max_artifacts": 5
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": { "type": "string" }
+        },
+        "required": ["result"],
+        "additionalProperties": false
+      },
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_secs": [5],
+        "retry_on": ["tool_error", "timeout"]
+      },
+      "supervision": {
+        "allowed_outcomes": [
+          { "id": "accept", "description": "Accept agent output" }
+        ],
+        "default_outcome": "accept",
+        "owner": "main_agent"
+      },
+      "transitions": {
+        "accept": {
+          "terminate": {
+            "reason": "processing_complete",
+            "run_status": "succeeded"
+          }
+        }
+      }
+    }
+  ],
+  "final_output": {
+    "result": "${steps.process.output.result}",
+    "task": "${run.input.task}"
+  },
+  "metadata": { "example": true }
+}

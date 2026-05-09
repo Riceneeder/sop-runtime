@@ -53,7 +53,7 @@ export async function main(): Promise<void> {
   }
 
   if (command === '--version') {
-    console.log('0.1.0-alpha.0');
+    console.log('0.2.4-alpha.0');
     process.exit(0);
   }
 

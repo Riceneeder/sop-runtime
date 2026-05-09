@@ -15,6 +15,12 @@
     "pack:dry-run": "bun run build && npm_config_cache=/tmp/sop-runtime-npm-cache npm pack --dry-run --json ./packages/definition && npm_config_cache=/tmp/sop-runtime-npm-cache npm pack --dry-run --json ./packages/validator && npm_config_cache=/tmp/sop-runtime-npm-cache npm pack --dry-run --json ./packages/core && npm_config_cache=/tmp/sop-runtime-npm-cache npm pack --dry-run --json ./packages/adapter-core && npm_config_cache=/tmp/sop-runtime-npm-cache npm pack --dry-run --json ./packages/executor-shell && npm_config_cache=/tmp/sop-runtime-npm-cache npm pack --dry-run --json ./packages/executor-agent && npm_config_cache=/tmp/sop-runtime-npm-cache npm pack --dry-run --json ./packages/executor-http && npm_config_cache=/tmp/sop-runtime-npm-cache npm pack --dry-run --json ./packages/executor-file && npm_config_cache=/tmp/sop-runtime-npm-cache npm pack --dry-run --json ./packages/runtime && npm_config_cache=/tmp/sop-runtime-npm-cache npm pack --dry-run --json ./packages/cli",
     "cli": "bun packages/cli/src/index.ts",
     "smoke:cli": "bun run cli -- validate examples/basic_sop_definition.json && bun run cli -- trace examples/basic_sop_definition.json --input examples/basic_input.json && bun run cli -- run examples/echo_sop_definition.json --input examples/basic_input.json",
+    "smoke:shell": "bun packages/runtime/scripts/smoke_shell.ts",
+    "smoke:agent": "bun packages/runtime/scripts/smoke_agent.ts",
+    "smoke:http": "bun packages/runtime/scripts/smoke_http.ts",
+    "smoke:file": "bun packages/runtime/scripts/smoke_file.ts",
+    "smoke:adapter": "bun run smoke:shell && bun run smoke:agent && bun run smoke:http && bun run smoke:file",
+    "check:adapter": "bun run check && bun run smoke:adapter",
     "check:alpha": "bun run check && bun run pack:dry-run && bun run smoke:cli"
   },
   "devDependencies": {

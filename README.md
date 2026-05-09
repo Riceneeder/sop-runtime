@@ -24,6 +24,10 @@ bun run check
 - [`packages/validator`](./packages/validator/README.md)：SOP definition 的准入校验入口。
 - [`packages/core`](./packages/core/README.md)：纯状态机语义，包括创建 run、生成 step packet、应用结果和渲染最终输出。
 - [`packages/adapter-core`](./packages/adapter-core/README.md)：executor adapter 共享底座类型和工具函数。
+- [`packages/executor-shell`](./packages/executor-shell/README.md)：本地命令执行器 adapter（spawn 风格 API，受控命令白名单）。
+- [`packages/executor-agent`](./packages/executor-agent/README.md)：Agent 执行器 adapter（通过宿主注册的 AgentRunner 运行 agent 步骤）。
+- [`packages/executor-http`](./packages/executor-http/README.md)：HTTP 执行器 adapter（基于 fetch 的 HTTP 请求步骤，支持 URL/来源校验）。
+- [`packages/executor-file`](./packages/executor-file/README.md)：文件执行器 adapter（在 workspace root 内读写文件，防止路径穿越）。
 - [`packages/runtime`](./packages/runtime/README.md)：可嵌入运行层，组合 core 与外部端口。
 - [`schemas/sop-definition.schema.json`](./schemas/sop-definition.schema.json)：SOP definition 的结构层 JSON Schema（仓库级公开工件，同时通过 `@sop-runtime/definition` 的 package export 路径提供）。
 - [`examples/basic_sop_definition.json`](./examples/basic_sop_definition.json)：经过 validator 测试覆盖的参考定义（仓库级公开工件，同时通过 `@sop-runtime/definition` 的 package export 路径提供）。
@@ -33,7 +37,8 @@ bun run check
 依赖方向保持单向：
 
 ```text
-definition -> validator -> core -> adapter-core -> runtime
+definition -> validator -> core -> adapter-core -> executor-{shell,agent,http,file}
+                                     └> runtime -> cli
 ```
 
 ## 运行时序图
@@ -168,8 +173,12 @@ console.log(completed.final_output);
 - 校验顶层结构、步骤引用、transition 和 outcome 的一致性。
 - 校验模板表达式中的 `run.input.*`、`steps.<step_id>.output.*`、`steps.<step_id>.artifacts.*` 引用。
 - 在单进程内用 `InMemoryStateStore` 跑通本地 demo 或测试。
+- 用 `FileStateStore` 将 run state 持久化到本地 JSON 文件（原子写入，面向本地开发/演示）。
+- 用 `JsonlEventSink` 将 runtime 事件以 JSONL 格式追加写入文件。
+- 用 `RuleBasedDecisionProvider` 基于 expression template 条件做规则匹配的决策路由。
 - 通过 `RuntimeHost` 接入自定义 store、executor、decision provider、logger 和 event sink。
 - 通过 runtime hooks 在 step 前后受控改写输入 / result，并请求 pause 或 terminate。
+- 通过 Shell / Agent / HTTP / File 四个 executor adapter 连接真实执行环境。
 
 ## 暂不包含
 
@@ -177,7 +186,7 @@ console.log(completed.final_output);
 - Definition registry、版本发布、审批流或远程 schema 分发。
 - 远程 URL schema/example 分发路径（当前仅支持 package export 和仓库路径引用）。
 - 从自然语言自动生成 SOP definition 的 authoring 层。
-- SQLite、file store、队列、租约或多 worker 调度实现。
+- SQLite、队列、租约或多 worker 调度实现。
 
 ## 约定
 
@@ -205,5 +214,11 @@ In 0.1-alpha, it does not hard-cancel underlying executor work unless AbortSigna
 | `bun run check` | lint + typecheck + 测试 |
 | `bun run pack:dry-run` | 构建后验证所有包可 pack（不发布） |
 | `bun run smoke:cli` | CLI 三个命令的基础冒烟测试 |
+| `bun run smoke:shell` | Shell adapter 冒烟测试（本地真实命令执行） |
+| `bun run smoke:agent` | Agent adapter 冒烟测试（mock AgentRunner） |
+| `bun run smoke:http` | HTTP adapter 冒烟测试（本地 mock 服务器） |
+| `bun run smoke:file` | File adapter 冒烟测试（临时 workspace） |
+| `bun run smoke:adapter` | 串行运行全部 adapter 冒烟测试 |
+| `bun run check:adapter` | check + smoke:adapter |
 | `bun run check:alpha` | 完整 alpha 验证：check → pack:dry-run → smoke:cli |
 

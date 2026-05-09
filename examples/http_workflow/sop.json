@@ -1,0 +1,85 @@
+{
+  "$schema": "../../schemas/sop-definition.schema.json",
+  "sop_id": "http-demo",
+  "name": "HTTP Workflow Demo",
+  "version": "1.0.0",
+  "description": "Demonstrates an HTTP executor step making a GET request",
+  "entry_step": "fetch_data",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "api_url": { "type": "string", "format": "uri" }
+    },
+    "required": ["api_url"],
+    "additionalProperties": false
+  },
+  "policies": {
+    "cooldown_secs": 0,
+    "max_run_secs": 60,
+    "idempotency_key_template": "http-demo:${run.input.api_url}",
+    "concurrency": {
+      "mode": "singleflight",
+      "key_template": "http-demo:${run.input.api_url}"
+    }
+  },
+  "steps": [
+    {
+      "id": "fetch_data",
+      "title": "Fetch Data",
+      "description": "Makes an HTTP GET request to the specified URL",
+      "inputs": {},
+      "executor": {
+        "kind": "http",
+        "name": "request",
+        "config": {
+          "method": "GET",
+          "url": "${run.input.api_url}",
+          "headers": {
+            "Accept": "application/json"
+          }
+        },
+        "timeout_secs": 30,
+        "allow_network": true,
+        "env": {},
+        "resource_limits": {
+          "max_output_bytes": 65536,
+          "max_artifacts": 0
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "number" },
+          "body": { "type": "object" }
+        },
+        "required": ["status"],
+        "additionalProperties": true
+      },
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_secs": [5],
+        "retry_on": ["tool_error", "timeout"]
+      },
+      "supervision": {
+        "allowed_outcomes": [
+          { "id": "accept", "description": "Accept HTTP response data" }
+        ],
+        "default_outcome": "accept",
+        "owner": "main_agent"
+      },
+      "transitions": {
+        "accept": {
+          "terminate": {
+            "reason": "fetch_complete",
+            "run_status": "succeeded"
+          }
+        }
+      }
+    }
+  ],
+  "final_output": {
+    "response_status": "${steps.fetch_data.output.status}",
+    "response_body": "${steps.fetch_data.output.body}"
+  },
+  "metadata": { "example": true }
+}
