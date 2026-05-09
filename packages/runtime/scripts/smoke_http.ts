@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 /**
- * Smoke test for @sop-runtime/executor-http.
+ * Smoke test for @sop-runtime/executor-http with config template resolution.
  *
  * Starts a local Bun.serve mock server, creates an inline SOP definition
- * with an HTTP step, executes via RuntimeHost + createHttpExecutor,
- * and asserts final output. Shuts down the server when done.
+ * whose HTTP step URL comes from run input and is resolved by the adapter's
+ * resolveConfigTemplates option. Asserts final output, then shuts down.
  */
 
 import { validateDefinition } from '@sop-runtime/validator';
@@ -29,17 +29,20 @@ const server = Bun.serve({
 });
 
 const { port } = server;
+const apiUrl = `http://localhost:${port}/ping`;
 
 const definition = {
   sop_id: 'smoke-http',
   name: 'HTTP Adapter Smoke Test',
   version: '1.0.0',
-  description: 'Makes a GET request to a local mock server',
+  description: 'Resolves URL from run input via resolveConfigTemplates',
   entry_step: 'ping',
   input_schema: {
     type: 'object',
-    properties: {},
-    required: [],
+    properties: {
+      api_url: { type: 'string', minLength: 1 },
+    },
+    required: ['api_url'],
     additionalProperties: false,
   },
   policies: {
@@ -52,14 +55,14 @@ const definition = {
     {
       id: 'ping',
       title: 'Ping',
-      description: 'GET /ping on local mock server',
+      description: 'GET /ping via template-resolved URL',
       inputs: {},
       executor: {
         kind: 'http',
         name: 'request',
         config: {
           method: 'GET',
-          url: `http://localhost:${port}/ping`,
+          url: '${run.input.api_url}',
         },
         timeout_secs: 10,
         allow_network: true,
@@ -107,12 +110,12 @@ const host = new RuntimeHost({
 const httpAdapter = createHttpExecutor({
   allowNetwork: true,
   allowedOrigins: [`http://localhost:${port}`],
-  resolveConfigTemplates: false,
+  resolveConfigTemplates: true,
 });
 host.registerExecutor(httpAdapter.kind, httpAdapter.name, httpAdapter.handler);
 
 try {
-  const started = await host.startRun({ definition, input: {} });
+  const started = await host.startRun({ definition, input: { api_url: apiUrl } });
   if (started.state.status !== 'running') {
     console.error('FAIL: run did not start', JSON.stringify(started));
     server.stop();
