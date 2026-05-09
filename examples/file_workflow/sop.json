@@ -35,7 +35,7 @@
         "name": "file",
         "config": {
           "action": "read",
-          "path": "${run.input.file_path}"
+          "path": "config.json"
         },
         "timeout_secs": 10,
         "allow_network": false,
