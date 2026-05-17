@@ -11,6 +11,7 @@ import { RuntimeError } from './runtime_error.js';
 import { isCooldownActive } from './state_store_helpers.js';
 
 const SCHEMA_VERSION = 1;
+const SQLITE_BUSY_TIMEOUT_MS = 5000;
 
 /**
  * SQLite-backed StateStore for production and development.
@@ -30,6 +31,7 @@ export class SqliteStateStore implements StateStore {
    */
   constructor(options: { dbPath: string }) {
     this.db = new Database(options.dbPath, { strict: true });
+    this.db.exec(`PRAGMA busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS};`);
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec('PRAGMA foreign_keys = ON;');
     this.ensureSchema();
@@ -142,16 +144,24 @@ export class SqliteStateStore implements StateStore {
           [stateJson, updatedAt, state.run_id, Number(options.expected_revision)],
         );
         if (result.changes === 0) {
+          // Run may not exist, or version mismatch — either way it's a CAS conflict
           throw new RuntimeError('cas_conflict', {
             'message': 'Run state was modified by another worker (CAS version mismatch).',
             'details': { 'run_id': state.run_id },
           });
         }
       } else {
-        this.db.run(
+        const result = this.db.run(
           'UPDATE runs SET state = ?1, version = version + 1, updated_at = ?2 WHERE run_id = ?3',
           [stateJson, updatedAt, state.run_id],
         );
+        if (result.changes === 0) {
+          // Run does not exist yet — insert new row (same semantics as saveRun)
+          this.db.run(
+            'INSERT INTO runs (run_id, state, version, created_at, updated_at) VALUES (?1, ?2, 1, ?3, ?4)',
+            [state.run_id, stateJson, state.created_at ?? updatedAt, updatedAt],
+          );
+        }
       }
 
       const isTerminated = state.phase === 'terminated' ? 1 : 0;
@@ -176,9 +186,21 @@ export class SqliteStateStore implements StateStore {
   }
 
   async saveRunRecord(record: RunRecord): Promise<void> {
+    // Upsert only when run_id matches. If a different run_id conflicts on
+    // the (sop_id, sop_version, idempotency_key) unique index, the constraint
+    // will surface as a SQLITE_CONSTRAINT_UNIQUE error rather than silently
+    // replacing the existing record.
     this.db.run(
-      `INSERT OR REPLACE INTO records (run_id, sop_id, sop_version, idempotency_key, concurrency_key, created_at, updated_at, completed_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+      `INSERT INTO records (run_id, sop_id, sop_version, idempotency_key, concurrency_key, created_at, updated_at, completed_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+       ON CONFLICT(run_id) DO UPDATE SET
+         sop_id = excluded.sop_id,
+         sop_version = excluded.sop_version,
+         idempotency_key = excluded.idempotency_key,
+         concurrency_key = excluded.concurrency_key,
+         created_at = excluded.created_at,
+         updated_at = excluded.updated_at,
+         completed_at = excluded.completed_at`,
       [
         record.run_id, record.sop_id, record.sop_version,
         record.idempotency_key, record.concurrency_key,

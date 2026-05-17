@@ -581,3 +581,146 @@ describe('concurrent claimRunStart', () => {
     expect(replayed).toBe(9);
   });
 });
+
+// ---------------------------------------------------------------------------
+// saveRunState with non-existent run
+// ---------------------------------------------------------------------------
+
+describe('saveRunState non-existent run', () => {
+  test('without expected_revision inserts new run', async () => {
+    const store = createStore();
+    const state = makeMinimalState();
+    await store.saveRunState(state);
+
+    const loaded = await store.loadRun('run_001');
+    expect(loaded).not.toBeNull();
+    expect(loaded!.run_id).toBe('run_001');
+  });
+
+  test('with expected_revision on non-existent run throws cas_conflict', async () => {
+    const store = createStore();
+    const state = makeMinimalState();
+
+    expect(
+      store.saveRunState(state, { expected_revision: '1' }),
+    ).rejects.toThrow(RuntimeError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// saveRunRecord idempotency conflict
+// ---------------------------------------------------------------------------
+
+describe('saveRunRecord idempotency integrity', () => {
+  test('same run_id re-save updates record', async () => {
+    const store = createStore();
+    const record = makeRecord({ concurrency_key: 'conc-v1' });
+    await store.saveRun(makeMinimalState());
+    await store.saveRunRecord(record);
+
+    // Re-save same run_id with different data
+    await store.saveRunRecord(makeRecord({ run_id: 'run_001', concurrency_key: 'conc-v2' }));
+
+    const loaded = await store.loadRunRecord('run_001');
+    expect(loaded).not.toBeNull();
+    expect(loaded!.concurrency_key).toBe('conc-v2');
+  });
+
+  test('different run_id same idempotency key throws', async () => {
+    const store = createStore();
+    const state1 = makeMinimalState();
+    const record1 = makeRecord();
+    await store.saveRun(state1);
+    await store.saveRunRecord(record1);
+
+    // Second record with same (sop_id, sop_version, idempotency_key) but different run_id
+    const state2 = makeMinimalState({ run_id: 'run_002' });
+    const record2 = makeRecord({ run_id: 'run_002' });
+    await store.saveRun(state2);
+
+    expect(
+      store.saveRunRecord(record2),
+    ).rejects.toThrow();
+
+    // Original record must still be intact
+    const original = await store.loadRunRecord('run_001');
+    expect(original).not.toBeNull();
+    expect(original!.run_id).toBe('run_001');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// busy_timeout: file-backed concurrent claimRunStart
+// ---------------------------------------------------------------------------
+
+describe('busy_timeout concurrent claimRunStart', () => {
+  test('two instances on same file serialize concurrent starts', async () => {
+    const dbPath = '/tmp/test_sqlite_busy_timeout.db';
+    try { Bun.spawnSync(['rm', '-f', dbPath]); } catch { /* ignore */ }
+
+    const store1 = new SqliteStateStore({ dbPath });
+    const store2 = new SqliteStateStore({ dbPath });
+
+    const promises = [
+      store1.claimRunStart({
+        state: makeMinimalState({ run_id: 'run_001' }),
+        record: makeRecord({ run_id: 'run_001', idempotency_key: 'busy-key-1' }),
+        concurrency_mode: 'allow_parallel',
+        cooldown_secs: 0,
+        now: '2026-01-01T00:00:00.000Z',
+      }),
+      store2.claimRunStart({
+        state: makeMinimalState({ run_id: 'run_002' }),
+        record: makeRecord({ run_id: 'run_002', idempotency_key: 'busy-key-2' }),
+        concurrency_mode: 'allow_parallel',
+        cooldown_secs: 0,
+        now: '2026-01-01T00:00:00.000Z',
+      }),
+    ];
+
+    const results = await Promise.all(promises);
+    const created = results.filter((r) => r.reason === 'created').length;
+    // With two unique idempotency keys, both should create
+    expect(created).toBe(2);
+
+    store1.close();
+    store2.close();
+    try { Bun.spawnSync(['rm', '-f', dbPath]); } catch { /* ignore */ }
+  });
+
+  test('two instances idempotency serialization', async () => {
+    const dbPath = '/tmp/test_sqlite_busy_idem.db';
+    try { Bun.spawnSync(['rm', '-f', dbPath]); } catch { /* ignore */ }
+
+    const store1 = new SqliteStateStore({ dbPath });
+    const store2 = new SqliteStateStore({ dbPath });
+
+    // Both try to claim same idempotency key
+    const promises = [
+      store1.claimRunStart({
+        state: makeMinimalState({ run_id: 'run_001' }),
+        record: makeRecord({ run_id: 'run_001' }),
+        concurrency_mode: 'allow_parallel',
+        cooldown_secs: 0,
+        now: '2026-01-01T00:00:00.000Z',
+      }),
+      store2.claimRunStart({
+        state: makeMinimalState({ run_id: 'run_002' }),
+        record: makeRecord({ run_id: 'run_002' }),
+        concurrency_mode: 'allow_parallel',
+        cooldown_secs: 0,
+        now: '2026-01-01T00:00:00.000Z',
+      }),
+    ];
+
+    const results = await Promise.all(promises);
+    const created = results.filter((r) => r.reason === 'created').length;
+    const replayed = results.filter((r) => r.reason === 'idempotent_replay').length;
+    expect(created).toBe(1);
+    expect(replayed).toBe(1);
+
+    store1.close();
+    store2.close();
+    try { Bun.spawnSync(['rm', '-f', dbPath]); } catch { /* ignore */ }
+  });
+});
