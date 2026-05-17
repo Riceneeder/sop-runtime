@@ -39,15 +39,22 @@ export async function dispatchExecutor(
   }
 
   const resourceLimits = structuredClone(packet.executor.resource_limits);
+  const abortController = new AbortController();
 
   const invocation = await executeHandlerWithTimeout(
-    () => handler(buildHandlerInput(packet, definition, state)),
+    () => handler(buildHandlerInput(packet, definition, state, abortController.signal)),
     packet.executor.timeout_secs,
+    abortController.signal,
   );
 
+  // If timeout won the race, propagate cancellation to the handler
   if (invocation.kind === 'timeout') {
+    abortController.abort();
     return buildTimeoutResult(packet);
   }
+
+  // Cleanup: result came back before abort, no need to signal
+  abortController.abort();
 
   if (invocation.kind === 'error') {
     throw invocation.error;
@@ -66,6 +73,7 @@ function buildHandlerInput(
   packet: ReturnType<typeof buildStepPacket>,
   definition: SopDefinition,
   state: RunState,
+  signal?: AbortSignal,
 ): ExecutorHandlerInput {
   const clonedExecutor = structuredClone(packet.executor);
   return {
@@ -80,6 +88,7 @@ function buildHandlerInput(
     definition: structuredClone(definition) as SopDefinition,
     state: structuredClone(state) as RunState,
     'config': clonedExecutor.config ?? {},
+    signal,
   };
 }
 

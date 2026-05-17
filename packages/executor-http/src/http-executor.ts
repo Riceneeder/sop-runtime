@@ -91,6 +91,7 @@ export function createHttpExecutor(options: HttpExecutorOptions): ExecutorAdapte
         { method: methodResult.method, headers, body: bodyResult.body, redirect: 'manual' },
         input.packet.executor.timeout_secs,
         packet,
+        input.signal,
       );
       if (!fetchResult.ok) return fetchResult.result;
 

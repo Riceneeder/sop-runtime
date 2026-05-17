@@ -85,9 +85,21 @@ export interface HandlerResult {
  * @returns The result of execution (handler result, timeout, or error).
  * @public
  */
+/**
+ * Execute a handler function with a timeout guard and optional external cancellation signal.
+ *
+ * 在超时保护和可选的外部取消信号下执行处理器函数。
+ *
+ * @param handler - The handler to execute.
+ * @param timeoutSecs - Timeout in seconds.
+ * @param signal - Optional AbortSignal for external cancellation.
+ * @returns The result of execution (handler result, timeout, or error).
+ * @public
+ */
 export async function executeHandlerWithTimeout(
   handler: () => Promise<StepResult> | StepResult,
   timeoutSecs: number,
+  signal?: AbortSignal,
 ): Promise<HandlerResult | TimeoutResult | ErrorResult> {
   const safePromise = Promise.resolve()
     .then(() => handler())
@@ -102,10 +114,26 @@ export async function executeHandlerWithTimeout(
     }, timeoutMs);
   });
 
+  // Build abort promise from external signal if provided
+  let abortListener: (() => void) | undefined;
+  const abortPromise: Promise<TimeoutResult> = signal !== undefined
+    ? new Promise<TimeoutResult>((resolve) => {
+        if (signal.aborted) {
+          resolve({ kind: 'timeout' });
+        } else {
+          abortListener = () => resolve({ kind: 'timeout' });
+          signal.addEventListener('abort', abortListener, { once: true });
+        }
+      })
+    : new Promise<TimeoutResult>(() => {}); // never settles
+
   const startTime = Date.now();
-  const outcome = await Promise.race([safePromise, timeoutPromise]);
+  const outcome = await Promise.race([safePromise, timeoutPromise, abortPromise]);
   if (timeoutHandle !== undefined) {
     clearTimeout(timeoutHandle);
+  }
+  if (abortListener !== undefined && signal !== undefined) {
+    signal.removeEventListener('abort', abortListener);
   }
 
   if (outcome.kind === 'result') {

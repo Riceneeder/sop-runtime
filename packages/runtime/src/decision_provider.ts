@@ -9,6 +9,7 @@ export interface DecisionProvider {
     definition: SopDefinition;
     state: RunState;
     accepted_result: AcceptedStepResult;
+    signal?: AbortSignal;
   }): Promise<Decision>;
 }
 

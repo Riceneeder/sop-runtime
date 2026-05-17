@@ -14,6 +14,7 @@ export const RUNTIME_ERROR_CODES = [
   'run_id_conflict',
   'executor_not_registered',
   'hook_rejected',
+  'cas_conflict',
 ] as const;
 
 /**

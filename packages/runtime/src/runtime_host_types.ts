@@ -77,6 +77,8 @@ export interface ExecutorHandlerInput {
   state: RunState;
   /** Executor-specific config resolved from the step definition. 从步骤定义解析的执行器特定配置。 */
   config: JsonObject;
+  /** Optional AbortSignal for cancelling in-flight execution. 用于取消正在执行的操作的可选 AbortSignal。 */
+  signal?: AbortSignal;
 }
 
 /**

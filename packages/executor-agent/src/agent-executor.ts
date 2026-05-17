@@ -154,7 +154,7 @@ async function executeAgent(
 
   let agentResult: AgentResult;
   try {
-    agentResult = await selected.runner.run(task);
+    agentResult = await selected.runner.run(task, { signal: input.signal });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return buildToolErrorResult(packet, 'agent_runner_error', `Agent runner error: ${message}`);

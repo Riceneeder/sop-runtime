@@ -94,6 +94,7 @@ export async function applyDecisionImpl(
     'definition': definition,
     state,
     'accepted_result': acceptedResult,
+    'signal': new AbortController().signal,
   });
   state = await enforceMaxRunSecs(definition, state, deps);
   if (state.phase === 'terminated') return state;

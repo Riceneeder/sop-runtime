@@ -194,11 +194,12 @@ function validateStepConfig(
 
 function trySpawn(
   execPath: string, args: string[], env: Record<string, string>,
-  cwd: string | undefined, packet: StepPacket,
+  cwd: string | undefined, packet: StepPacket, signal?: AbortSignal,
 ): StepResult | ReturnType<typeof Bun.spawn> {
   try {
     return Bun.spawn([execPath, ...args], {
       env, cwd, stdin: 'pipe', stdout: 'pipe', stderr: 'pipe',
+      signal,
     });
   } catch (err) {
     return buildToolErrorResult(
@@ -219,14 +220,24 @@ function tryWriteStdin(proc: ReturnType<typeof Bun.spawn>, bytes: Uint8Array): v
 }
 
 async function raceExit(
-  proc: ReturnType<typeof Bun.spawn>, timeoutMs: number,
+  proc: ReturnType<typeof Bun.spawn>, timeoutMs: number, signal?: AbortSignal,
 ): Promise<number | 'timeout'> {
-  const result = await Promise.race([
+  const promises: Promise<{ kind: 'exited' | 'timeout'; code?: number }>[] = [
     proc.exited.then((code) => ({ kind: 'exited' as const, code })),
     sleep(timeoutMs).then(() => ({ kind: 'timeout' as const })),
-  ]);
+  ];
+  if (signal !== undefined) {
+    promises.push(new Promise((resolve) => {
+      if (signal.aborted) {
+        resolve({ kind: 'timeout' });
+      } else {
+        signal.addEventListener('abort', () => resolve({ kind: 'timeout' }), { once: true });
+      }
+    }));
+  }
+  const result = await Promise.race(promises);
   if (result.kind === 'timeout') return 'timeout';
-  return result.code;
+  return result.code!;
 }
 
 function buildNonZeroError(
@@ -263,7 +274,7 @@ async function executeShell(
   );
   const stderrCap = options.maxStderrBytes ?? DEFAULT_MAX_STDERR_BYTES;
   const timeoutMs = Math.max(0, Math.round(packet.executor.timeout_secs * 1000));
-  const proc = trySpawn(execPath, args, env, resolvedCwd, packet);
+  const proc = trySpawn(execPath, args, env, resolvedCwd, packet, input.signal);
   if ('status' in proc) return proc;
   tryWriteStdin(proc, stdinBytes);
   if (!proc.stdout || typeof proc.stdout === 'number' || !proc.stderr || typeof proc.stderr === 'number') {
@@ -271,7 +282,7 @@ async function executeShell(
   }
   const stdoutRead = readWithCap(proc.stdout, stdoutCap);
   const stderrRead = readWithCap(proc.stderr, stderrCap);
-  const exitResult = await raceExit(proc, timeoutMs);
+  const exitResult = await raceExit(proc, timeoutMs, input.signal);
   if (exitResult === 'timeout') {
     proc.kill(15); // SIGTERM
     await Promise.race([

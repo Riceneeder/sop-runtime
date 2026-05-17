@@ -37,13 +37,37 @@ export async function executeFetchWithTimeout(
   init: Parameters<typeof fetch>[1],
   timeoutSecs: number,
   packet: StepPacket,
+  signal?: AbortSignal,
 ): Promise<{ ok: true; response: Response } | { ok: false; result: StepResult }> {
   const ac = new AbortController();
   const timeoutMs = Math.min(timeoutSecs * 1000, 2_147_483_647);
   const timer = setTimeout(() => ac.abort(), timeoutMs);
 
+  // Compose internal timeout with external cancellation signal
+  if (signal !== undefined) {
+    if (signal.aborted) {
+      clearTimeout(timer);
+      return {
+        ok: false,
+        result: {
+          run_id: packet.run_id,
+          step_id: packet.step_id,
+          attempt: packet.attempt,
+          status: 'timeout' as const,
+          error: {
+            code: 'http_timeout',
+            message: `Request timed out after ${timeoutSecs} seconds.`,
+            details: { timeout_secs: timeoutSecs },
+          },
+        },
+      };
+    }
+    signal.addEventListener('abort', () => { clearTimeout(timer); ac.abort(); }, { once: true });
+  }
+
   try {
-    const response = await fetch(url, { ...init, signal: ac.signal });
+    const combinedSignal = AbortSignal.any([ac.signal, ...(signal !== undefined ? [signal] : [])]);
+    const response = await fetch(url, { ...init, signal: combinedSignal });
     clearTimeout(timer);
     return { ok: true, response };
   } catch (err) {
