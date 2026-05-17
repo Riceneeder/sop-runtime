@@ -60,6 +60,25 @@ export async function requireRunSnapshot(
 }
 
 /**
+ * Reload a run state snapshot from the store for the same run.
+ * Shorthand for requireRunSnapshot(store, state.run_id) after a save succeeded
+ * and the previous revision is no longer valid.
+ *
+ * 从存储重新加载同一运行的快照。在保存成功且旧 revision 已失效后使用。
+ *
+ * @param store - The state store.
+ * @param state - The current (possibly stale) run state used to extract run_id.
+ * @returns The fresh snapshot with current revision.
+ * @public
+ */
+export async function reloadRunSnapshot(
+  store: StateStore,
+  state: RunState,
+): Promise<{ state: RunState; revision?: string }> {
+  return requireRunSnapshot(store, state.run_id);
+}
+
+/**
  * Assert that a given SOP definition matches the identity of an existing run.
  *
  * 断言给定 SOP 定义与现有运行的身份匹配。

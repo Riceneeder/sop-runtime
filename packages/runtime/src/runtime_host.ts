@@ -418,11 +418,13 @@ export class RuntimeHost {
    */
   async runUntilComplete(params: RunUntilCompleteParams): Promise<RunUntilCompleteResult> {
     const maxRuntimeSteps = params.maxRuntimeSteps ?? 100;
-    let { state } = await requireRunSnapshot(this.deps.store, params.runId);
+    let snapshot = await requireRunSnapshot(this.deps.store, params.runId);
+    let state = snapshot.state;
+    let revision = snapshot.revision;
     assertDefinitionMatchesRun(params.definition, state);
 
     for (let step = 0; step < maxRuntimeSteps; step += 1) {
-      state = await enforceMaxRunSecs(params.definition, state, this.deps);
+      state = await enforceMaxRunSecs(params.definition, state, this.deps, revision);
       if (state.phase === 'terminated') {
         return buildCompletedResult(params.definition, state);
       }
@@ -437,7 +439,9 @@ export class RuntimeHost {
           'runId': state.run_id,
         });
         // Reload snapshot for fresh revision on next iteration
-        state = await this.getRunState({ 'runId': state.run_id });
+        snapshot = await requireRunSnapshot(this.deps.store, state.run_id);
+        state = snapshot.state;
+        revision = snapshot.revision;
         continue;
       }
 
@@ -447,7 +451,9 @@ export class RuntimeHost {
           'runId': state.run_id,
         });
         // Reload snapshot for fresh revision on next iteration
-        state = await this.getRunState({ 'runId': state.run_id });
+        snapshot = await requireRunSnapshot(this.deps.store, state.run_id);
+        state = snapshot.state;
+        revision = snapshot.revision;
         continue;
       }
 

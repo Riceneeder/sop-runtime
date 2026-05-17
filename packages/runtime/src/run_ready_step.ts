@@ -9,7 +9,7 @@ import {
   buildStepPacket,
 } from '@sop-runtime/core';
 import { HostDeps } from './runtime_host_types.js';
-import { requireRunSnapshot, assertDefinitionMatchesRun } from './runtime_host_state.js';
+import { requireRunSnapshot, reloadRunSnapshot, assertDefinitionMatchesRun } from './runtime_host_state.js';
 import { enforceMaxRunSecs } from './runtime_host_deadline.js';
 import { handleControl } from './runtime_host_control.js';
 import { dispatchExecutor } from './executor_dispatch.js';
@@ -86,9 +86,13 @@ async function handleAfterStepHookResult(
   });
 
   if (afterControl !== null) {
-    const stateBeforeControl = await enforceMaxRunSecs(definition, nextState, deps, expected_revision);
+    // applyResultAndEmit incremented the DB version via saveRunState, so the
+    // previous expected_revision is now stale. Reload and use both the fresh
+    // state AND revision together to avoid overwriting a concurrent update.
+    const fresh = await reloadRunSnapshot(deps.store, nextState);
+    const stateBeforeControl = await enforceMaxRunSecs(definition, fresh.state, deps, fresh.revision);
     if (stateBeforeControl.phase === 'terminated') return stateBeforeControl;
-    return handleControl(deps, afterControl, definition, stateBeforeControl, expected_revision);
+    return handleControl(deps, afterControl, definition, stateBeforeControl, fresh.revision);
   }
 
   return nextState;
