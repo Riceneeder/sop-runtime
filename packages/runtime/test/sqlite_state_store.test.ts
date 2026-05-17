@@ -63,6 +63,49 @@ describe('SqliteStateStore', () => {
     expect(loaded!.status).toBe('running');
   });
 
+  test('loadRunSnapshot returns state and revision', async () => {
+    const store = createStore();
+    const state = makeMinimalState();
+    await store.saveRun(state);
+    const snapshot = await store.loadRunSnapshot('run_001');
+    expect(snapshot).not.toBeNull();
+    expect(snapshot!.state.run_id).toBe('run_001');
+    expect(snapshot!.revision).toBe('1');
+  });
+
+  test('loadRunSnapshot returns null for non-existent run', async () => {
+    const store = createStore();
+    expect(await store.loadRunSnapshot('nonexistent')).toBeNull();
+  });
+
+  test('CAS revision increments across saves', async () => {
+    const store = createStore();
+    const state = makeMinimalState();
+    const record = makeRecord();
+    await store.saveRun(state);
+    await store.saveRunRecord(record);
+
+    const snap1 = await store.loadRunSnapshot('run_001');
+    expect(snap1!.revision).toBe('1');
+
+    await store.saveRunState(
+      { ...state, updated_at: '2026-01-01T00:01:00.000Z' },
+      { expected_revision: snap1!.revision },
+    );
+
+    const snap2 = await store.loadRunSnapshot('run_001');
+    expect(snap2!.revision).toBe('2');
+  });
+
+  test('loadRun does not expose revision', async () => {
+    const store = createStore();
+    const state = makeMinimalState();
+    await store.saveRun(state);
+    const loaded = await store.loadRun('run_001');
+    expect(loaded).not.toBeNull();
+    expect((loaded as unknown as Record<string, unknown>)['revision']).toBeUndefined();
+  });
+
   test('loadRunRecord returns null for non-existent record', async () => {
     const store = createStore();
     expect(await store.loadRunRecord('nonexistent')).toBeNull();
@@ -260,49 +303,87 @@ describe('claimRunStart', () => {
 // ---------------------------------------------------------------------------
 
 describe('CAS (compare-and-swap)', () => {
-  test('saveRunState with stale version throws cas_conflict', async () => {
+  test('saveRunState with stale expected_revision throws cas_conflict', async () => {
     const store = createStore();
     const state = makeMinimalState();
     await store.saveRun(state);
     const record = makeRecord();
     await store.saveRunRecord(record);
 
-    // First update succeeds (version 1)
-    const stateV1 = { ...state, updated_at: '2026-01-01T00:01:00.000Z', version: 1 };
-    await store.saveRunState(stateV1 as RunState & { version: number });
+    const snap1 = await store.loadRunSnapshot('run_001');
+    await store.saveRunState(
+      { ...state, updated_at: '2026-01-01T00:01:00.000Z' },
+      { expected_revision: snap1!.revision },
+    );
 
-    // Second attempt with same version should fail
     expect(
-      store.saveRunState({ ...state, updated_at: '2026-01-01T00:02:00.000Z', version: 1 } as RunState & { version: number }),
+      store.saveRunState(
+        { ...state, updated_at: '2026-01-01T00:02:00.000Z' },
+        { expected_revision: snap1!.revision },
+      ),
     ).rejects.toThrow(RuntimeError);
   });
 
-  test('saveRunState with correct version succeeds', async () => {
+  test('saveRunState with correct revision succeeds', async () => {
     const store = createStore();
     const state = makeMinimalState();
     await store.saveRun(state);
     const record = makeRecord();
     await store.saveRunRecord(record);
 
-    // First update (version 1 -> 2)
-    const stateV1 = { ...state, updated_at: '2026-01-01T00:01:00.000Z', version: 1 };
-    await store.saveRunState(stateV1 as RunState & { version: number });
+    const snap1 = await store.loadRunSnapshot('run_001');
+    await store.saveRunState(
+      { ...state, updated_at: '2026-01-01T00:01:00.000Z' },
+      { expected_revision: snap1!.revision },
+    );
 
-    // Second update with version 2 succeeds
-    const stateV2 = { ...state, updated_at: '2026-01-01T00:02:00.000Z', version: 2 };
-    await store.saveRunState(stateV2 as RunState & { version: number });
+    const snap2 = await store.loadRunSnapshot('run_001');
+    await store.saveRunState(
+      { ...state, updated_at: '2026-01-01T00:02:00.000Z' },
+      { expected_revision: snap2!.revision },
+    );
   });
 
-  test('saveRun version CAS conflict', async () => {
+  test('saveRun with expected_revision CAS conflict', async () => {
     const store = createStore();
     const state = makeMinimalState();
     await store.saveRun(state);
 
-    await store.saveRun({ ...state, updated_at: '2026-01-01T00:01:00.000Z' } as RunState & { version: number });
+    const snap1 = await store.loadRunSnapshot('run_001');
+    await store.saveRun(
+      { ...state, updated_at: '2026-01-01T00:01:00.000Z' },
+      { expected_revision: snap1!.revision },
+    );
 
     expect(
-      store.saveRun({ ...state, updated_at: '2026-01-01T00:02:00.000Z', version: 1 } as RunState & { version: number }),
+      store.saveRun(
+        { ...state, updated_at: '2026-01-01T00:02:00.000Z' },
+        { expected_revision: snap1!.revision },
+      ),
     ).rejects.toThrow(RuntimeError);
+  });
+
+  test('saveRunState without expected_revision succeeds regardless of version', async () => {
+    const store = createStore();
+    const state = makeMinimalState();
+    const record = makeRecord();
+    await store.saveRun(state);
+    await store.saveRunRecord(record);
+
+    // First update (revision 1 -> 2)
+    const snap1 = await store.loadRunSnapshot('run_001');
+    await store.saveRunState(
+      { ...state, updated_at: '2026-01-01T00:01:00.000Z' },
+      { expected_revision: snap1!.revision },
+    );
+
+    // Second update without expected_revision succeeds regardless
+    await store.saveRunState(
+      { ...state, updated_at: '2026-01-01T00:02:00.000Z' },
+    );
+
+    const snap3 = await store.loadRunSnapshot('run_001');
+    expect(snap3!.revision).toBe('3');
   });
 });
 

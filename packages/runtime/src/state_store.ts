@@ -57,10 +57,12 @@ export interface ClaimRunStartResult {
  */
 export interface StateStore {
   loadRun(runId: string): Promise<RunState | null>;
+  /** Loads a run state snapshot together with its revision for CAS concurrency control. 加载运行状态快照及其用于 CAS 并发控制的修订版本号。 */
+  loadRunSnapshot(runId: string): Promise<{ state: RunState; revision?: string } | null>;
   /** Low-level snapshot write. Prefer saveRunState for host-managed updates. 低层快照写入；若由 host 管理更新，优先使用 saveRunState。 */
-  saveRun(state: RunState): Promise<void>;
+  saveRun(state: RunState, options?: { expected_revision?: string }): Promise<void>;
   /** Saves a run snapshot and updates the matching RunRecord timestamps. 保存运行快照并更新对应 RunRecord 的时间戳。 */
-  saveRunState(state: RunState): Promise<void>;
+  saveRunState(state: RunState, options?: { expected_revision?: string }): Promise<void>;
   loadRunRecord(runId: string): Promise<RunRecord | null>;
   saveRunRecord(record: RunRecord): Promise<void>;
   /** Atomically creates, reuses, joins, drops, or cooldown-rejects a run start. 以原子方式执行创建、复用、并入、丢弃或冷却拒绝等启动决策。 */

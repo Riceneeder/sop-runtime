@@ -53,9 +53,6 @@ export async function dispatchExecutor(
     return buildTimeoutResult(packet);
   }
 
-  // Cleanup: result came back before abort, no need to signal
-  abortController.abort();
-
   if (invocation.kind === 'error') {
     throw invocation.error;
   }

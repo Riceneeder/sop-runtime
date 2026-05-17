@@ -56,20 +56,26 @@ export class FileStateStore implements StateStore {
   }
 
   async loadRun(runId: string): Promise<RunState | null> {
+    const snapshot = await this.loadRunSnapshot(runId);
+    return snapshot?.state ?? null;
+  }
+
+  async loadRunSnapshot(runId: string): Promise<{ state: RunState; revision?: string } | null> {
     return this.lock(async () => {
       await this.ensureDirs();
-      return this.readJson<RunState>(this.runPath(runId));
+      const state = await this.readJson<RunState>(this.runPath(runId));
+      return state === null ? null : { 'state': state, 'revision': undefined };
     });
   }
 
-  async saveRun(state: RunState): Promise<void> {
+  async saveRun(state: RunState, _options?: { expected_revision?: string }): Promise<void> {
     return this.lock(async () => {
       await this.ensureDirs();
       await this.atomicWrite(this.runPath(state.run_id), state);
     });
   }
 
-  async saveRunState(state: RunState): Promise<void> {
+  async saveRunState(state: RunState, _options?: { expected_revision?: string }): Promise<void> {
     return this.lock(async () => {
       await this.ensureDirs();
       await this.atomicWrite(this.runPath(state.run_id), state);

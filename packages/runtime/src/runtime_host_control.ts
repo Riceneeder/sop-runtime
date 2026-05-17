@@ -8,7 +8,7 @@ import {
   terminateRun,
 } from '@sop-runtime/core';
 import { HostDeps } from './runtime_host_types.js';
-import { requireRun, assertDefinitionMatchesRun } from './runtime_host_state.js';
+import { requireRunSnapshot, assertDefinitionMatchesRun } from './runtime_host_state.js';
 import { enforceMaxRunSecs } from './runtime_host_deadline.js';
 import { HookControl } from './hook_pipeline.js';
 
@@ -21,6 +21,7 @@ import { HookControl } from './hook_pipeline.js';
  * @param control - The hook control action.
  * @param definition - The SOP definition.
  * @param state - The current run state.
+ * @param expected_revision - Optional revision for CAS save.
  * @returns The updated run state.
  * @public
  */
@@ -29,6 +30,7 @@ export async function handleControl(
   control: HookControl,
   definition: SopDefinition,
   state: RunState,
+  expected_revision?: string,
 ): Promise<RunState> {
   if (control.action === 'pause') {
     const paused = pauseRun({
@@ -37,7 +39,7 @@ export async function handleControl(
       'reason': control.reason,
       'now': deps.clock.now(),
     });
-    await deps.store.saveRunState(paused);
+    await deps.store.saveRunState(paused, { 'expected_revision': expected_revision });
     await deps.eventSink.emit({
       kind: 'run_paused',
       'run_id': paused.run_id,
@@ -54,7 +56,7 @@ export async function handleControl(
     'reason': control.reason,
     'now': deps.clock.now(),
   });
-  await deps.store.saveRunState(terminated);
+  await deps.store.saveRunState(terminated, { 'expected_revision': expected_revision });
   await deps.eventSink.emit({
     kind: 'run_terminated',
     'run_id': terminated.run_id,
@@ -85,9 +87,9 @@ export async function pauseRunImpl(
   runId: string,
   reason: string,
 ): Promise<RunState> {
-  let state = await requireRun(deps.store, runId);
+  let { state, revision } = await requireRunSnapshot(deps.store, runId);
   assertDefinitionMatchesRun(definition, state);
-  state = await enforceMaxRunSecs(definition, state, deps);
+  state = await enforceMaxRunSecs(definition, state, deps, revision);
   if (state.phase === 'terminated') return state;
 
   const paused = pauseRun({
@@ -96,7 +98,7 @@ export async function pauseRunImpl(
     'reason': reason,
     'now': deps.clock.now(),
   });
-  await deps.store.saveRunState(paused);
+  await deps.store.saveRunState(paused, { 'expected_revision': revision });
   await deps.eventSink.emit({
     kind: 'run_paused',
     'run_id': paused.run_id,
@@ -123,9 +125,9 @@ export async function resumeRunImpl(
   definition: SopDefinition,
   runId: string,
 ): Promise<RunState> {
-  let state = await requireRun(deps.store, runId);
+  let { state, revision } = await requireRunSnapshot(deps.store, runId);
   assertDefinitionMatchesRun(definition, state);
-  state = await enforceMaxRunSecs(definition, state, deps);
+  state = await enforceMaxRunSecs(definition, state, deps, revision);
   if (state.phase === 'terminated') return state;
 
   const resumed = resumeRun({
@@ -133,7 +135,7 @@ export async function resumeRunImpl(
     state,
     'now': deps.clock.now(),
   });
-  await deps.store.saveRunState(resumed);
+  await deps.store.saveRunState(resumed, { 'expected_revision': revision });
   await deps.eventSink.emit({
     kind: 'run_resumed',
     'run_id': resumed.run_id,
@@ -164,9 +166,9 @@ export async function terminateRunImpl(
   runStatus: 'cancelled' | 'failed',
   reason: string,
 ): Promise<RunState> {
-  let state = await requireRun(deps.store, runId);
+  let { state, revision } = await requireRunSnapshot(deps.store, runId);
   assertDefinitionMatchesRun(definition, state);
-  state = await enforceMaxRunSecs(definition, state, deps);
+  state = await enforceMaxRunSecs(definition, state, deps, revision);
   if (state.phase === 'terminated') return state;
 
   const terminated = terminateRun({
@@ -176,7 +178,7 @@ export async function terminateRunImpl(
     'reason': reason,
     'now': deps.clock.now(),
   });
-  await deps.store.saveRunState(terminated);
+  await deps.store.saveRunState(terminated, { 'expected_revision': revision });
   await deps.eventSink.emit({
     kind: 'run_terminated',
     'run_id': terminated.run_id,

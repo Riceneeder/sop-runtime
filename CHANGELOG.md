@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### 0.3.0-alpha.0
+
+- **AbortSignal 支持**: `ExecutorHandlerInput.signal`、`DecisionProvider.decide()` signal、runtime 级 deadline abort
+- **StateStore CAS**: 新增 `loadRunSnapshot` 方法，`saveRun`/`saveRunState` 支持 `expected_revision` 参数
+- **SQLite 重构**: 显式 `BEGIN IMMEDIATE` / `COMMIT` / `ROLLBACK`，版本 revision 不污染 RunState JSON
+- **RuntimeHost revision 串联**: `requireRunSnapshot` helper，所有 9 个 saveRunState 调用点传递 expected_revision
+- **DecisionProvider 取消**: 根据 `max_run_secs` 构建 deadline AbortSignal，deadline 到期时 abort signal
+- **dispatchExecutor 优化**: 移除成功路径的多余 `abortController.abort()` 调用
+- **SqliteEventSink**: SQLite 后端 EventSink 实现
+- **DefinitionRegistry**: 轻量内存 definition 注册表
+- **多 worker 安全文档**: `docs/design/multi_worker_safety.md`
+- 36 个新测试，共 508 个测试全部通过
+- 版本号统一升至 `0.3.0-alpha.0`
+
 ### 0.2.4-alpha.0
 
 - Add `smoke:shell` / `smoke:agent` / `smoke:http` / `smoke:file` smoke test scripts under `scripts/`, each exercising the corresponding adapter via `RuntimeHost`.

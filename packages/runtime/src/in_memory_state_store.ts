@@ -35,12 +35,17 @@ export class InMemoryStateStore implements StateStore {
     return state === undefined ? null : structuredClone(state);
   }
 
+  async loadRunSnapshot(runId: string): Promise<{ state: RunState; revision?: string } | null> {
+    const state = this.runs.get(runId);
+    return state === undefined ? null : { 'state': structuredClone(state), 'revision': undefined };
+  }
+
   /**
    * Save a run state by its identifier.
    *
    * 根据标识符保存运行状态。
    */
-  async saveRun(state: RunState): Promise<void> {
+  async saveRun(state: RunState, _options?: { expected_revision?: string }): Promise<void> {
     this.runs.set(state.run_id, structuredClone(state));
   }
 
@@ -49,7 +54,7 @@ export class InMemoryStateStore implements StateStore {
    *
    * 保存运行状态并更新关联的运行记录。
    */
-  async saveRunState(state: RunState): Promise<void> {
+  async saveRunState(state: RunState, _options?: { expected_revision?: string }): Promise<void> {
     this.runs.set(state.run_id, structuredClone(state));
 
     const record = this.records.get(state.run_id);

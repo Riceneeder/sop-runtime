@@ -30,7 +30,7 @@ import {
   getCurrentStepImpl,
   renderPolicyKey,
   assertDefinitionMatchesRun,
-  requireRun,
+  requireRunSnapshot,
 } from './runtime_host_state.js';
 import { decideOutcomeImpl, applyDecisionImpl } from './runtime_host_decision.js';
 import { pauseRunImpl, resumeRunImpl, terminateRunImpl } from './runtime_host_control.js';
@@ -418,7 +418,7 @@ export class RuntimeHost {
    */
   async runUntilComplete(params: RunUntilCompleteParams): Promise<RunUntilCompleteResult> {
     const maxRuntimeSteps = params.maxRuntimeSteps ?? 100;
-    let state = await requireRun(this.deps.store, params.runId);
+    let { state } = await requireRunSnapshot(this.deps.store, params.runId);
     assertDefinitionMatchesRun(params.definition, state);
 
     for (let step = 0; step < maxRuntimeSteps; step += 1) {
@@ -436,6 +436,8 @@ export class RuntimeHost {
           'definition': params.definition,
           'runId': state.run_id,
         });
+        // Reload snapshot for fresh revision on next iteration
+        state = await this.getRunState({ 'runId': state.run_id });
         continue;
       }
 
@@ -444,6 +446,8 @@ export class RuntimeHost {
           'definition': params.definition,
           'runId': state.run_id,
         });
+        // Reload snapshot for fresh revision on next iteration
+        state = await this.getRunState({ 'runId': state.run_id });
         continue;
       }
 

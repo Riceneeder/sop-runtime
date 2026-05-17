@@ -66,7 +66,6 @@ export class SqliteStateStore implements StateStore {
         ON records(sop_id, sop_version, concurrency_key);
     `);
 
-    // Track schema version for future migrations
     this.db.exec('CREATE TABLE IF NOT EXISTS _meta (id INTEGER PRIMARY KEY, schema_version INTEGER NOT NULL);');
     this.db.run('INSERT OR IGNORE INTO _meta (id, schema_version) VALUES (1, ?1)', [SCHEMA_VERSION]);
   }
@@ -77,63 +76,95 @@ export class SqliteStateStore implements StateStore {
   }
 
   async loadRun(runId: string): Promise<RunState | null> {
-    const row = this.db.query<{ state: string }, [string]>(
-      'SELECT state FROM runs WHERE run_id = ?1',
-    ).get(runId);
-    if (row === null) return null;
-    return JSON.parse(row.state) as RunState;
+    const snapshot = await this.loadRunSnapshot(runId);
+    return snapshot?.state ?? null;
   }
 
-  async saveRun(state: RunState): Promise<void> {
+  async loadRunSnapshot(runId: string): Promise<{ state: RunState; revision?: string } | null> {
+    const row = this.db.query<{ state: string; version: number }, [string]>(
+      'SELECT state, version FROM runs WHERE run_id = ?1',
+    ).get(runId);
+    if (row === null) return null;
+    return { 'state': JSON.parse(row.state) as RunState, 'revision': String(row.version) };
+  }
+
+  async saveRun(state: RunState, options?: { expected_revision?: string }): Promise<void> {
     const stateJson = JSON.stringify(state);
-    const version = (state as RunState & { version?: number }).version ?? 1;
-    const result = this.db.run(
-      'UPDATE runs SET state = ?1, version = version + 1, updated_at = ?2 WHERE run_id = ?3 AND version = ?4',
-      [stateJson, state.updated_at ?? '', state.run_id, version],
-    );
-    if (result.changes === 0) {
-      // Might be first insert or version conflict
-      const existing = this.db.query<{ run_id: string }, [string]>(
-        'SELECT run_id FROM runs WHERE run_id = ?1',
-      ).get(state.run_id);
-      if (existing !== null) {
-        throw new RuntimeError('cas_conflict', {
-          'message': 'Run state was modified by another worker (CAS version mismatch).',
-          'details': { 'run_id': state.run_id },
-        });
-      }
-      // First insert
-      this.db.run(
-        'INSERT INTO runs (run_id, state, version, created_at, updated_at) VALUES (?1, ?2, 1, ?3, ?4)',
-        [state.run_id, stateJson, state.created_at ?? state.updated_at ?? '', state.updated_at ?? ''],
+    const updatedAt = state.updated_at ?? '';
+
+    if (options?.expected_revision !== undefined) {
+      // CAS write
+      const result = this.db.run(
+        'UPDATE runs SET state = ?1, version = version + 1, updated_at = ?2 WHERE run_id = ?3 AND version = ?4',
+        [stateJson, updatedAt, state.run_id, Number(options.expected_revision)],
       );
+      if (result.changes === 0) {
+        const existing = this.db.query<{ run_id: string }, [string]>(
+          'SELECT run_id FROM runs WHERE run_id = ?1',
+        ).get(state.run_id);
+        if (existing === null) {
+          // First insert
+          this.db.run(
+            'INSERT INTO runs (run_id, state, version, created_at, updated_at) VALUES (?1, ?2, 1, ?3, ?4)',
+            [state.run_id, stateJson, state.created_at ?? updatedAt, updatedAt],
+          );
+        } else {
+          throw new RuntimeError('cas_conflict', {
+            'message': 'Run state was modified by another worker (CAS version mismatch).',
+            'details': { 'run_id': state.run_id },
+          });
+        }
+      }
+    } else {
+      // Unconditional write (no CAS)
+      const result = this.db.run(
+        'UPDATE runs SET state = ?1, version = version + 1, updated_at = ?2 WHERE run_id = ?3',
+        [stateJson, updatedAt, state.run_id],
+      );
+      if (result.changes === 0) {
+        this.db.run(
+          'INSERT INTO runs (run_id, state, version, created_at, updated_at) VALUES (?1, ?2, 1, ?3, ?4)',
+          [state.run_id, stateJson, state.created_at ?? updatedAt, updatedAt],
+        );
+      }
     }
   }
 
-  async saveRunState(state: RunState): Promise<void> {
-    const stateJson = JSON.stringify(state);
-    const version = (state as RunState & { version?: number }).version ?? 1;
-    const affected = this.db.transaction(() => {
-      // Update run state with CAS
-      const result = this.db.run(
-        'UPDATE runs SET state = ?1, version = version + 1, updated_at = ?2 WHERE run_id = ?3 AND version = ?4',
-        [stateJson, state.updated_at ?? '', state.run_id, version],
-      );
-      if (result.changes === 0) {
-        throw new RuntimeError('cas_conflict', {
-          'message': 'Run state was modified by another worker (CAS version mismatch).',
-          'details': { 'run_id': state.run_id },
-        });
+  async saveRunState(state: RunState, options?: { expected_revision?: string }): Promise<void> {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const stateJson = JSON.stringify(state);
+      const updatedAt = state.updated_at ?? '';
+
+      if (options?.expected_revision !== undefined) {
+        const result = this.db.run(
+          'UPDATE runs SET state = ?1, version = version + 1, updated_at = ?2 WHERE run_id = ?3 AND version = ?4',
+          [stateJson, updatedAt, state.run_id, Number(options.expected_revision)],
+        );
+        if (result.changes === 0) {
+          throw new RuntimeError('cas_conflict', {
+            'message': 'Run state was modified by another worker (CAS version mismatch).',
+            'details': { 'run_id': state.run_id },
+          });
+        }
+      } else {
+        this.db.run(
+          'UPDATE runs SET state = ?1, version = version + 1, updated_at = ?2 WHERE run_id = ?3',
+          [stateJson, updatedAt, state.run_id],
+        );
       }
 
-      // Update record timestamps
       const isTerminated = state.phase === 'terminated' ? 1 : 0;
       this.db.run(
         'UPDATE records SET updated_at = ?1, completed_at = CASE WHEN ?2 = 1 THEN ?3 ELSE completed_at END WHERE run_id = ?4',
-        [state.updated_at ?? '', isTerminated, state.updated_at ?? null, state.run_id],
+        [updatedAt, isTerminated, updatedAt, state.run_id],
       );
-    });
-    affected();
+
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
   }
 
   async loadRunRecord(runId: string): Promise<RunRecord | null> {
@@ -157,8 +188,9 @@ export class SqliteStateStore implements StateStore {
   }
 
   async claimRunStart(params: ClaimRunStartParams): Promise<ClaimRunStartResult> {
-    return this.db.transaction(() => {
-      // 1. Check idempotency: find by (sop_id, sop_version, idempotency_key)
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      // 1. Check idempotency
       const idempotentRecord = this.db.query<RunRecordRow, [string, string, string]>(
         `SELECT run_id, sop_id, sop_version, idempotency_key, concurrency_key, created_at, updated_at, completed_at
          FROM records
@@ -166,8 +198,9 @@ export class SqliteStateStore implements StateStore {
       ).get(params.record.sop_id, params.record.sop_version, params.record.idempotency_key);
 
       if (idempotentRecord !== null) {
-        const state = this.loadRunSync(idempotentRecord.run_id);
+        const state = this.loadState(idempotentRecord.run_id);
         if (state !== null) {
+          this.db.exec('COMMIT');
           return {
             'state': state,
             'record': rowToRecord(idempotentRecord),
@@ -176,7 +209,7 @@ export class SqliteStateStore implements StateStore {
         }
       }
 
-      // 2. Check cooldown: find latest completed by concurrency key
+      // 2. Check cooldown
       const completedRows = this.db.query<RunRecordRow, [string, string, string]>(
         `SELECT run_id, sop_id, sop_version, idempotency_key, concurrency_key, created_at, updated_at, completed_at
          FROM records
@@ -192,8 +225,9 @@ export class SqliteStateStore implements StateStore {
           'cooldown_secs': params.cooldown_secs,
           'now': params.now,
         })) {
-          const state = this.loadRunSync(latest.run_id);
+          const state = this.loadState(latest.run_id);
           if (state !== null) {
+            this.db.exec('COMMIT');
             return {
               'state': state,
               'record': rowToRecord(latest),
@@ -203,7 +237,7 @@ export class SqliteStateStore implements StateStore {
         }
       }
 
-      // 3. Check concurrency: find running by concurrency key
+      // 3. Check concurrency
       const runningRows = this.db.query<RunRecordRow, [string, string, string]>(
         `SELECT r.run_id, r.sop_id, r.sop_version, r.idempotency_key, r.concurrency_key, r.created_at, r.updated_at, r.completed_at
          FROM records r
@@ -214,21 +248,15 @@ export class SqliteStateStore implements StateStore {
 
       if (runningRows.length > 0) {
         const runningRecord = runningRows[0]!;
-        const state = this.loadRunSync(runningRecord.run_id);
+        const state = this.loadState(runningRecord.run_id);
         if (state !== null) {
           if (params.concurrency_mode === 'singleflight') {
-            return {
-              'state': state,
-              'record': rowToRecord(runningRecord),
-              'reason': 'singleflight_joined' as const,
-            };
+            this.db.exec('COMMIT');
+            return { 'state': state, 'record': rowToRecord(runningRecord), 'reason': 'singleflight_joined' as const };
           }
           if (params.concurrency_mode === 'drop_if_running') {
-            return {
-              'state': state,
-              'record': rowToRecord(runningRecord),
-              'reason': 'dropped_running' as const,
-            };
+            this.db.exec('COMMIT');
+            return { 'state': state, 'record': rowToRecord(runningRecord), 'reason': 'dropped_running' as const };
           }
         }
       }
@@ -263,12 +291,16 @@ export class SqliteStateStore implements StateStore {
         ],
       );
 
+      this.db.exec('COMMIT');
       return {
         'state': structuredClone(params.state),
         'record': structuredClone(params.record),
         'reason': 'created' as const,
       };
-    })();
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
   }
 
   async findRunByIdempotencyKey(lookup: RunRecordLookup): Promise<RunRecord | null> {
@@ -311,7 +343,7 @@ export class SqliteStateStore implements StateStore {
   // Private helpers
   // ---------------------------------------------------------------------------
 
-  private loadRunSync(runId: string): RunState | null {
+  private loadState(runId: string): RunState | null {
     const row = this.db.query<{ state: string }, [string]>(
       'SELECT state FROM runs WHERE run_id = ?1',
     ).get(runId);

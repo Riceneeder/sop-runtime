@@ -35,6 +35,31 @@ export async function requireRun(store: StateStore, runId: string): Promise<RunS
 }
 
 /**
+ * Load a run state snapshot (including revision) from the store and throw if it does not exist.
+ *
+ * 从存储加载包含修订版本号的运行状态快照，若不存在则抛出异常。
+ *
+ * @param store - The state store.
+ * @param runId - The run identifier.
+ * @returns The loaded run state snapshot with optional revision.
+ * @throws {RuntimeError} If the run is not found.
+ * @public
+ */
+export async function requireRunSnapshot(
+  store: StateStore,
+  runId: string,
+): Promise<{ state: RunState; revision?: string }> {
+  const snapshot = await store.loadRunSnapshot(runId);
+  if (snapshot === null) {
+    throw new RuntimeError('run_not_found', {
+      'message': `Run not found: ${runId}`,
+      'details': {'run_id': runId},
+    });
+  }
+  return snapshot;
+}
+
+/**
  * Assert that a given SOP definition matches the identity of an existing run.
  *
  * 断言给定 SOP 定义与现有运行的身份匹配。

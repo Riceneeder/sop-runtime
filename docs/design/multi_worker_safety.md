@@ -23,7 +23,16 @@ Worker B: BEGIN IMMEDIATE → (waits for A) → check idempotency → found → 
 
 ### 2. 版本 CAS (Compare-And-Swap)
 
-`runs` 表包含 `version` 列，每次 `UPDATE` 时自动递增。`saveRun` 和 `saveRunState` 使用带版本条件的更新：
+`runs` 表包含 `version` 列，每次 `UPDATE` 时自动递增。`saveRun` 和 `saveRunState` 通过 `options.expected_revision` 参数接收预期版本：
+
+```typescript
+const snapshot = await store.loadRunSnapshot(runId);
+// snapshot.revision === String(version from SQLite)
+
+await store.saveRunState(updatedState, { expected_revision: snapshot.revision });
+```
+
+对应的 SQL：
 
 ```sql
 UPDATE runs SET state = ?, version = version + 1, updated_at = ?
@@ -33,9 +42,9 @@ WHERE run_id = ? AND version = ?;
 如果 `changes() = 0`，说明版本不匹配（其他 worker 已修改），抛出 `cas_conflict` 错误。
 
 ```
-Worker A 加载 run (version=5)
-Worker B 加载 run (version=5)
-Worker A 保存 (version=5 → 6) 成功
+Worker A 加载 run (revision "5")
+Worker B 加载 run (revision "5")
+Worker A 保存 (WHERE version=5 → 6) 成功
 Worker B 保存 (WHERE version=5) 失败 → cas_conflict
 ```
 
@@ -44,6 +53,7 @@ Worker B 保存 (WHERE version=5) 失败 → cas_conflict
 - **loadRun 是无锁的** — 两个 worker 可以同时加载同一个 run。只有 save 时会检测冲突
 - **claimRunStart 不受 CAS 保护** — 它有自己的事务串行化机制
 - **只读操作不会触发 CAS**
+- **不传 `expected_revision` 时不做 CAS 检查** — 用于明确不需要并发保护的写入路径
 
 ### 3. 唯一索引
 
@@ -71,16 +81,15 @@ worker-2: run_002, run_004, run_006
 
 #### 方案 B：CAS 安全网 (0.3-alpha)
 
-如果发生两个 worker 偶然驱动同一 run，CAS 会在 save 时抛出冲突异常。调用方应捕获 `cas_conflict`，重新加载最新状态，然后重试操作。
+RuntimeHost 内部通过 `requireRunSnapshot` 加载 revision，并在所有保存路径中传递 `expected_revision`。如果发生 CAS 冲突，`saveRunState` 抛出 `cas_conflict` 异常。调用方应捕获并重新加载最新状态：
 
 ```typescript
 try {
   await host.runUntilComplete({ definition, runId });
 } catch (err) {
   if (err instanceof RuntimeError && err.code === 'cas_conflict') {
-    // 另一个 worker 已修改此 run，重新加载并评估
-    const freshState = await store.loadRun(runId);
-    // 决定是否重试
+    const { state, revision } = await store.loadRunSnapshot(runId);
+    // 决定是否从最新状态继续
   }
 }
 ```
@@ -157,7 +166,7 @@ const state = await store.loadRun(runId);
 | 机制 | 范围 | 0.3-alpha 状态 |
 |------|------|----------------|
 | claimRunStart 事务 | 创建/复用 run | 已实现（SQLite StateStore） |
-| 版本 CAS | run state 写入 | 已实现（SQLite StateStore） |
+| 版本 CAS | run state 写入 | 已实现（SQLite StateStore + RuntimeHost 串联） |
 | 唯一索引 | idempotency key | 已实现（SQLite StateStore） |
 | Step lease | 排他 step 执行 | 设计 RFC，未实现 |
 | Decision lease | 排他决策 | 设计 RFC，未实现 |

@@ -21,7 +21,7 @@
     "smoke:file": "bun packages/runtime/scripts/smoke_file.ts",
     "smoke:adapter": "bun run smoke:shell && bun run smoke:agent && bun run smoke:http && bun run smoke:file",
     "check:adapter": "bun run check && bun run smoke:adapter",
-    "check:alpha": "bun run check && bun run pack:dry-run && bun run smoke:cli"
+    "check:alpha": "bun run check && bun run pack:dry-run && bun run smoke:cli && bun run smoke:adapter"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",

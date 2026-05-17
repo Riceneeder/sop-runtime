@@ -9,8 +9,9 @@ import {
 } from '@sop-runtime/core';
 import { RuntimeError } from './runtime_error.js';
 import { HostDeps } from './runtime_host_types.js';
-import { requireRun, assertDefinitionMatchesRun, getCurrentAcceptedResult } from './runtime_host_state.js';
+import { requireRunSnapshot, assertDefinitionMatchesRun, getCurrentAcceptedResult } from './runtime_host_state.js';
 import { enforceMaxRunSecs } from './runtime_host_deadline.js';
+import { Clock } from './clock.js';
 
 /**
  * Decide an outcome for the current awaiting-decision step by outcome identifier.
@@ -34,9 +35,9 @@ export async function decideOutcomeImpl(
   reason?: string,
   metadata?: JsonObject,
 ): Promise<RunState> {
-  let state = await requireRun(deps.store, runId);
+  let { state, revision } = await requireRunSnapshot(deps.store, runId);
   assertDefinitionMatchesRun(definition, state);
-  state = await enforceMaxRunSecs(definition, state, deps);
+  state = await enforceMaxRunSecs(definition, state, deps, revision);
   if (state.phase === 'terminated') return state;
 
   if (state.phase !== 'awaiting_decision') {
@@ -56,7 +57,7 @@ export async function decideOutcomeImpl(
     'metadata': metadata,
   };
 
-  return applyDecisionAndEmit(deps, definition, state, decision);
+  return applyDecisionAndEmit(deps, definition, state, decision, revision);
 }
 
 /**
@@ -77,9 +78,9 @@ export async function applyDecisionImpl(
   runId: string,
   decisionOverride?: Decision,
 ): Promise<RunState> {
-  let state = await requireRun(deps.store, runId);
+  let { state, revision } = await requireRunSnapshot(deps.store, runId);
   assertDefinitionMatchesRun(definition, state);
-  state = await enforceMaxRunSecs(definition, state, deps);
+  state = await enforceMaxRunSecs(definition, state, deps, revision);
   if (state.phase === 'terminated') return state;
 
   if (state.phase !== 'awaiting_decision') {
@@ -90,16 +91,24 @@ export async function applyDecisionImpl(
   }
 
   const acceptedResult = getCurrentAcceptedResult(state);
-  const decision = decisionOverride ?? await deps.decisionProvider.decide({
-    'definition': definition,
-    state,
-    'accepted_result': acceptedResult,
-    'signal': new AbortController().signal,
-  });
-  state = await enforceMaxRunSecs(definition, state, deps);
+  const decision = decisionOverride ?? await (async () => {
+    const { signal, cleanup } = buildDeadlineSignal(definition, state, deps.clock);
+    try {
+      return await deps.decisionProvider.decide({
+        'definition': definition,
+        state,
+        'accepted_result': acceptedResult,
+        signal,
+      });
+    } finally {
+      cleanup();
+    }
+  })();
+
+  state = await enforceMaxRunSecs(definition, state, deps, revision);
   if (state.phase === 'terminated') return state;
 
-  return applyDecisionAndEmit(deps, definition, state, decision);
+  return applyDecisionAndEmit(deps, definition, state, decision, revision);
 }
 
 async function applyDecisionAndEmit(
@@ -107,6 +116,7 @@ async function applyDecisionAndEmit(
   definition: SopDefinition,
   state: RunState,
   decision: Decision,
+  expected_revision?: string,
 ): Promise<RunState> {
   const nextState = applyCoreDecision({
     'definition': definition,
@@ -114,7 +124,7 @@ async function applyDecisionAndEmit(
     decision,
     'now': deps.clock.now(),
   });
-  await deps.store.saveRunState(nextState);
+  await deps.store.saveRunState(nextState, { 'expected_revision': expected_revision });
   await deps.eventSink.emit({
     kind: 'decision_applied',
     'run_id': nextState.run_id,
@@ -138,4 +148,38 @@ async function applyDecisionAndEmit(
   }
 
   return nextState;
+}
+
+/**
+ * Build an AbortSignal that aborts when the run's max_run_secs deadline expires.
+ *
+ * 构建一个在运行的 max_run_secs 截止时间到期时中止的 AbortSignal。
+ */
+function buildDeadlineSignal(
+  definition: SopDefinition,
+  state: RunState,
+  clock: Clock,
+): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  if (state.created_at === undefined) {
+    return { 'signal': controller.signal, 'cleanup': () => {} };
+  }
+
+  const startedMs = Date.parse(state.created_at);
+  const nowMs = Date.parse(clock.now());
+  if (!Number.isFinite(startedMs) || !Number.isFinite(nowMs)) {
+    return { 'signal': controller.signal, 'cleanup': () => {} };
+  }
+
+  const remaining = definition.policies.max_run_secs * 1000 - (nowMs - startedMs);
+  if (remaining <= 0) {
+    controller.abort();
+    return { 'signal': controller.signal, 'cleanup': () => {} };
+  }
+
+  const handle = setTimeout(() => controller.abort(), remaining);
+  return {
+    'signal': controller.signal,
+    'cleanup': () => { clearTimeout(handle); },
+  };
 }

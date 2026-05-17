@@ -18,6 +18,7 @@ describe('runtime ports', () => {
   test('StateStore contract — methods accept and return expected shapes', async () => {
     const minimalStore: StateStore = {
       async loadRun(_runId) { return null; },
+      async loadRunSnapshot(_runId) { return null; },
       async saveRun(_state) {},
       async saveRunState(_state) {},
       async loadRunRecord(_runId) { return null; },

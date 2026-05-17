@@ -125,30 +125,41 @@
 - HTTP adapter 就绪后新增 `smoke:http`
 - 新增 `check:adapter = check + smoke:adapter`
 
-## 0.3-alpha：Runtime 强化
+## 0.3-alpha：Runtime 强化 ✅
+
+状态：已完成。
 
 目标：在 adapter 语义被验证后，强化 runtime 与存储模型。
 
 范围：
 
-- 支持 AbortSignal 的 executor 和 decision provider cancellation
-- 对支持 cancellation 的 adapter 提供更强 timeout 语义
-- SQLite `StateStore`
-  - transactions
+- ✅ 支持 AbortSignal 的 executor 和 decision provider cancellation
+  - `ExecutorHandlerInput.signal`、`DecisionProvider.decide()` signal、runtime 级 deadline abort
+- ✅ 对支持 cancellation 的 adapter 提供更强 timeout 语义
+  - shell / HTTP / agent adapter 接收 signal 并传递给底层操作
+- ✅ SQLite `StateStore`
+  - transactions（`BEGIN IMMEDIATE` / `COMMIT` / `ROLLBACK`）
   - idempotency / concurrency key 唯一索引
   - 持久化 run state 和 run record
-- event log persistence
-- step / decision lease 或 CAS 设计
-- 单 run 多 worker 安全模型
-- definition resolver 或轻量 definition registry
-- shell / agent / http / file adapter 兼容性测试
+  - 版本 CAS（`expected_revision` 参数）
+- ✅ event log persistence（`SqliteEventSink`）
+- ✅ step / decision CAS 设计（版本 CAS 作为冲突检测安全网）
+- ✅ 单 run 多 worker 安全模型（`docs/design/multi_worker_safety.md`）
+- ✅ definition resolver 或轻量 definition registry（`DefinitionRegistry`）
+- ✅ shell / agent / http / file adapter 兼容性测试
 
 验收标准：
 
-- SQLite store 实现原子 `claimRunStart`
-- 进程重启后可以恢复 run state
-- 支持 timeout 的 adapter 能在底层能力允许时取消正在执行的工作
-- step / decision 并发风险被文档化，或通过 lease / CAS 原型进行保护
+- ✅ SQLite store 实现原子 `claimRunStart`
+- ✅ 进程重启后可以恢复 run state
+- ✅ 支持 timeout 的 adapter 能在底层能力允许时取消正在执行的工作
+- ✅ step / decision 并发风险被文档化，并通过 CAS 原型进行保护
+
+### 明确未实现项（RFC / 未来工作）
+
+- step lease（排他 step 执行）
+- decision lease（排他决策）
+- worker heartbeat（崩溃检测）
 
 ## 0.4-alpha：生态 Adapter
 

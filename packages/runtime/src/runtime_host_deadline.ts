@@ -24,6 +24,7 @@ export async function enforceMaxRunSecs(
   definition: SopDefinition,
   state: RunState,
   deps: HostDeps,
+  expected_revision?: string,
 ): Promise<RunState> {
   if (state.phase === 'terminated') {
     return state;
@@ -52,7 +53,7 @@ export async function enforceMaxRunSecs(
     'reason': 'max_run_secs_exceeded',
     'now': now,
   });
-  await deps.store.saveRunState(terminated);
+  await deps.store.saveRunState(terminated, { 'expected_revision': expected_revision });
   await deps.eventSink.emit({
     kind: 'run_terminated',
     'run_id': terminated.run_id,

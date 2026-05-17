@@ -9,7 +9,7 @@ import {
   buildStepPacket,
 } from '@sop-runtime/core';
 import { HostDeps } from './runtime_host_types.js';
-import { requireRun, assertDefinitionMatchesRun } from './runtime_host_state.js';
+import { requireRunSnapshot, assertDefinitionMatchesRun } from './runtime_host_state.js';
 import { enforceMaxRunSecs } from './runtime_host_deadline.js';
 import { handleControl } from './runtime_host_control.js';
 import { dispatchExecutor } from './executor_dispatch.js';
@@ -32,9 +32,9 @@ export async function runReadyStepImpl(
   definition: SopDefinition,
   runId: string,
 ): Promise<RunState> {
-  let state = await requireRun(deps.store, runId);
+  let { state, revision } = await requireRunSnapshot(deps.store, runId);
   assertDefinitionMatchesRun(definition, state);
-  state = await enforceMaxRunSecs(definition, state, deps);
+  state = await enforceMaxRunSecs(definition, state, deps, revision);
   if (state.phase === 'terminated') return state;
 
   const packet = buildStepPacket({ 'definition': definition, state });
@@ -43,7 +43,7 @@ export async function runReadyStepImpl(
   const { currentInputs, currentConfig, control: beforeControl } =
     await runBeforeStepHooks(deps, packet, definition, state);
 
-  state = await enforceMaxRunSecs(definition, state, deps);
+  state = await enforceMaxRunSecs(definition, state, deps, revision);
   if (state.phase === 'terminated') return state;
 
   packet.inputs = currentInputs;
@@ -52,14 +52,14 @@ export async function runReadyStepImpl(
   }
 
   if (beforeControl !== null) {
-    return handleControl(deps, beforeControl, definition, state);
+    return handleControl(deps, beforeControl, definition, state, revision);
   }
 
   const result = await dispatchExecutor(deps, packet, definition, state);
-  state = await enforceMaxRunSecs(definition, state, deps);
+  state = await enforceMaxRunSecs(definition, state, deps, revision);
   if (state.phase === 'terminated') return state;
 
-  return handleAfterStepHookResult(deps, definition, packet, result, state);
+  return handleAfterStepHookResult(deps, definition, packet, result, state, revision);
 }
 
 async function handleAfterStepHookResult(
@@ -68,26 +68,27 @@ async function handleAfterStepHookResult(
   packet: ReturnType<typeof buildStepPacket>,
   result: StepResult,
   state: RunState,
+  expected_revision?: string,
 ): Promise<RunState> {
   const { currentResult, control: afterControl } =
     await runAfterStepHooks(deps, packet, result, definition, state);
 
-  let nextState = await enforceMaxRunSecs(definition, state, deps);
+  let nextState = await enforceMaxRunSecs(definition, state, deps, expected_revision);
   if (nextState.phase === 'terminated') return nextState;
 
   const enforcedResult = enforceLimitsPreserve(currentResult, packet);
 
-  nextState = await enforceMaxRunSecs(definition, nextState, deps);
+  nextState = await enforceMaxRunSecs(definition, nextState, deps, expected_revision);
   if (nextState.phase === 'terminated') return nextState;
 
   nextState = await applyResultAndEmit({
-    deps, definition, state: nextState, enforcedResult, 'stepId': packet.step_id,
+    deps, definition, state: nextState, enforcedResult, 'stepId': packet.step_id, expected_revision,
   });
 
   if (afterControl !== null) {
-    const stateBeforeControl = await enforceMaxRunSecs(definition, nextState, deps);
+    const stateBeforeControl = await enforceMaxRunSecs(definition, nextState, deps, expected_revision);
     if (stateBeforeControl.phase === 'terminated') return stateBeforeControl;
-    return handleControl(deps, afterControl, definition, stateBeforeControl);
+    return handleControl(deps, afterControl, definition, stateBeforeControl, expected_revision);
   }
 
   return nextState;
@@ -112,15 +113,16 @@ async function applyResultAndEmit(params: {
   state: RunState;
   enforcedResult: StepResult;
   stepId: string;
+  expected_revision?: string;
 }): Promise<RunState> {
-  const { deps, definition, state, enforcedResult, stepId } = params;
+  const { deps, definition, state, enforcedResult, stepId, expected_revision } = params;
   const nextState = applyStepResult({
     'definition': definition,
     state,
     'stepResult': enforcedResult,
     'now': deps.clock.now(),
   });
-  await deps.store.saveRunState(nextState);
+  await deps.store.saveRunState(nextState, { 'expected_revision': expected_revision });
   const acceptedResult = nextState.accepted_results[stepId]!;
   await deps.eventSink.emit({
     kind: 'step_result_accepted',
