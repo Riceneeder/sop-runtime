@@ -129,7 +129,7 @@ function matchesDeclaredType(value: unknown, declaredType: SupportedSchemaType):
   }
 
   if (declaredType === 'number') {
-    return typeof value === 'number';
+    return typeof value === 'number' && Number.isFinite(value);
   }
 
   if (declaredType === 'object') {
