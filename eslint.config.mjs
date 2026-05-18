@@ -6,7 +6,7 @@ import importPlugin from 'eslint-plugin-import';
 
 export default [
   {
-    ignores: ['node_modules', 'bun.lock', 'dist', '**/dist/**', '**/*.d.ts', 'packages/*/scripts/**'],
+    ignores: ['node_modules', 'bun.lock', 'dist', '**/dist/**', '**/*.d.ts', 'packages/*/scripts/**', '.claude/worktrees'],
   },
   js.configs.recommended,
   {

@@ -60,10 +60,10 @@ function validateAndMergeInput(definition: SopDefinition, input: JsonObject): Js
     });
   }
 
-  const runInput = {
+  const runInput = structuredClone({
     ...(definition.defaults ?? {}),
     ...input,
-  };
+  });
   const inputValidation = validateRuntimeValue({
     'schema': definition.input_schema,
     'value': runInput,
