@@ -177,7 +177,7 @@ function buildDeadlineSignal(
     return { 'signal': controller.signal, 'cleanup': () => {} };
   }
 
-  const handle = setTimeout(() => controller.abort(), remaining);
+  const handle = setTimeout(() => controller.abort(), Math.min(remaining, 0x7FFFFFFF));
   return {
     'signal': controller.signal,
     'cleanup': () => { clearTimeout(handle); },

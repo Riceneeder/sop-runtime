@@ -1,4 +1,5 @@
 import {readFileSync} from 'node:fs';
+import {version} from '../package.json';
 import {runValidate} from './commands/validate.js';
 import {runTrace} from './commands/trace.js';
 import {runRun} from './commands/run.js';
@@ -53,7 +54,7 @@ export async function main(): Promise<void> {
   }
 
   if (command === '--version') {
-    console.log('0.2.4-alpha.0');
+    console.log(version);
     process.exit(0);
   }
 
