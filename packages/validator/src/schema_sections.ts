@@ -172,7 +172,7 @@ function validateExecutor(value: unknown, path: string, diagnostics: Diagnostic[
   validateStringMap(value.env, joinPath(path, 'env'), diagnostics);
   validateResourceLimits(value.resource_limits, joinPath(path, 'resource_limits'), diagnostics);
 
-  if (value.config !== undefined && value.config !== null) {
+  if (value.config !== undefined) {
     requireObject(value.config, joinPath(path, 'config'), diagnostics);
   }
 }
