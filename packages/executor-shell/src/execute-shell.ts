@@ -273,7 +273,10 @@ async function executeShell(
     packet.executor.resource_limits.max_output_bytes,
   );
   const stderrCap = options.maxStderrBytes ?? DEFAULT_MAX_STDERR_BYTES;
-  const timeoutMs = Math.max(0, Math.round(packet.executor.timeout_secs * 1000));
+  const timeoutMs = Math.min(
+    Math.max(0, Math.round(packet.executor.timeout_secs * 1000)),
+    0x7FFFFFFF,
+  );
   const proc = trySpawn(execPath, args, env, resolvedCwd, packet, input.signal);
   if ('status' in proc) return proc;
   tryWriteStdin(proc, stdinBytes);
