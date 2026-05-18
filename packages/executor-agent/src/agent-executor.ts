@@ -4,7 +4,7 @@ import {
   buildSuccessResult,
   buildToolErrorResult,
 } from '@sop-runtime/adapter-core';
-import { JsonObject, StepPacket, StepResult, isStrictPlainObject } from '@sop-runtime/definition';
+import { JsonObject, StepPacket, StepResult, isJsonSafeValue, isStrictPlainObject } from '@sop-runtime/definition';
 
 /**
  * Interface for a host-provided agent runner.
@@ -169,6 +169,11 @@ async function executeAgent(
     JSON.stringify(agentResult.output);
   } catch {
     return buildToolErrorResult(packet, 'agent_invalid_output', 'Agent runner output is not JSON-serializable.');
+  }
+
+  // Catch NaN/Infinity/undefined that JSON.stringify silently mangles
+  if (!isJsonSafeValue(agentResult.output)) {
+    return buildToolErrorResult(packet, 'agent_invalid_output', 'Agent runner output is not JSON-safe.');
   }
 
   const result = buildSuccessResult(packet, agentResult.output as JsonObject, agentResult.artifacts);
