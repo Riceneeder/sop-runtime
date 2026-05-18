@@ -106,8 +106,14 @@ function parseOutput(stdout: string): JsonObject {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve_) => setTimeout(resolve_, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve_) => {
+    if (signal?.aborted) { resolve_(); return; }
+    const handle = setTimeout(resolve_, ms);
+    if (signal !== undefined) {
+      signal.addEventListener('abort', () => { clearTimeout(handle); resolve_(); }, { once: true });
+    }
+  });
 }
 
 function resolveCwdSafe(
@@ -222,9 +228,13 @@ function tryWriteStdin(proc: ReturnType<typeof Bun.spawn>, bytes: Uint8Array): v
 async function raceExit(
   proc: ReturnType<typeof Bun.spawn>, timeoutMs: number, signal?: AbortSignal,
 ): Promise<number | 'timeout'> {
+  const sleepAbort = new AbortController();
   const promises: Promise<{ kind: 'exited' | 'timeout'; code?: number }>[] = [
-    proc.exited.then((code) => ({ kind: 'exited' as const, code })),
-    sleep(timeoutMs).then(() => ({ kind: 'timeout' as const })),
+    proc.exited.then((code) => {
+      sleepAbort.abort();
+      return { kind: 'exited' as const, code };
+    }),
+    sleep(timeoutMs, sleepAbort.signal).then(() => ({ kind: 'timeout' as const })),
   ];
   if (signal !== undefined) {
     promises.push(new Promise((resolve) => {
